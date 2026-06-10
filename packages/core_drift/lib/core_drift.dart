@@ -10,3 +10,4 @@ library core_drift;
 export 'src/drift_checkpoint_store.dart';
 export 'src/drift_event_store.dart';
 export 'src/schema.dart';
+export 'src/watch_query.dart';
