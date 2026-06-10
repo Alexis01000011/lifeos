@@ -10,9 +10,9 @@ dependencies:
   core:
     path: ../core
   drift: ^2.20.0
+  sqlite3: ^2.4.0
   uuid: ^4.4.0
 
 dev_dependencies:
   lints: ^4.0.0
-  sqlite3: ^2.4.0
   test: ^1.25.0

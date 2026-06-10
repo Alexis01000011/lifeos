@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:core_drift/core_drift.dart';
+import 'package:core_drift/testing.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';

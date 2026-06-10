@@ -19,7 +19,13 @@ class DriftEventStore implements EventStore {
   final ProjectionEngine _engine;
   final Uuid _uuid = const Uuid();
 
-  DriftEventStore(this._db, this._registry, this._engine);
+  /// Reloj inyectable: producción usa DateTime.now; los tests que verifican
+  /// lógica dependiente de occurredAt (p. ej. bucketing semanal) lo fijan.
+  final DateTime Function() _clock;
+
+  DriftEventStore(this._db, this._registry, this._engine,
+      {DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now;
 
   @override
   Future<List<EventEnvelope>> append(
@@ -38,7 +44,7 @@ class DriftEventStore implements EventStore {
         throw ConcurrencyException(streamId, expectedVersion, current);
       }
 
-      final occurredAt = DateTime.now().toUtc();
+      final occurredAt = _clock().toUtc();
       final envelopes = <EventEnvelope>[];
       var version = expectedVersion;
       for (final event in events) {
