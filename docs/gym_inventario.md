@@ -39,7 +39,7 @@ double drop set
 5 series totales aproximadamente
 Abdomen
 3 ejercicios
-Jueves — Pecho, espalda y hombro
+Jueves — Pecho, hombro y tríceps (repite Lunes)
 Press plano 4x8 (variantes con maquina smith o barra)
 Press inclinado 4x12 (Variantes barra, smith o mancuernas)
 Peck Deck 4x12 (Variante maquina peck deck o poleas)
@@ -51,8 +51,7 @@ Aperturas 4x14
 Press frances 4x10 (con barra Z)
 Copa 4x12 (mancuerna)
 Jalon tricep polea 4x12 (variante agarre triangulo o cuerdas)
-Viernes — Brazos y abdomen
-Martes — Espalda y bíceps
+Viernes — Espalda, bíceps y abdomen (repite Martes)
 5 ejercicios de espalda
 Remo maquina barra T 4x8
 Remo maquina smith 4x8
