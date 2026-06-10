@@ -9,7 +9,10 @@ environment:
 dependencies:
   core:
     path: ../core
+  drift: ^2.20.0
 
 dev_dependencies:
+  core_drift:
+    path: ../core_drift
   lints: ^4.0.0
   test: ^1.25.0
