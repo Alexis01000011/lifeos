@@ -14,7 +14,7 @@ docs/
 packages/
   core/              abstracciones ES+CQRS (puro Dart, cero deps)
   core_drift/        adaptador Drift/SQLite del event store (ADR-0006)
-  gym/               (próximamente) primer módulo
+  gym/               primer módulo: workouts (write-side listo; proyecciones en Fase 2)
   hub/               (próximamente) agregación entre módulos
 app/                 (próximamente) shell Flutter que compone los módulos
 ```
