@@ -39,6 +39,54 @@ abstract class Upcaster {
   Map<String, dynamic> upcast(Map<String, dynamic> json);
 }
 
+/// Implementación por defecto del registro, con encadenado de upcasters.
+///
+/// Uso normal (weak schema): registrar SOLO la última versión de cada tipo;
+/// la fábrica tolera campos faltantes con defaults. Cuando el default no
+/// alcanza, se agrega un [Upcaster] por cada salto de versión vieja y la
+/// fábrica sigue siendo una sola.
+///
+/// [deserialize] busca fábrica exacta para (tipo, versión); si no hay,
+/// aplica upcasters v→v+1 hasta alcanzar una versión registrada. Si la
+/// cadena se corta, [UnknownEventTypeException] — política estricta.
+class DefaultEventTypeRegistry implements EventTypeRegistry {
+  final Map<(String, int), DomainEvent Function(Map<String, dynamic>)>
+      _factories = {};
+  final Map<(String, int), Upcaster> _upcasters = {};
+
+  @override
+  void register(
+    String eventType,
+    int schemaVersion,
+    DomainEvent Function(Map<String, dynamic> json) factory,
+  ) {
+    _factories[(eventType, schemaVersion)] = factory;
+  }
+
+  void registerUpcaster(Upcaster upcaster) {
+    _upcasters[(upcaster.eventType, upcaster.fromVersion)] = upcaster;
+  }
+
+  @override
+  DomainEvent deserialize(
+    String eventType,
+    int schemaVersion,
+    Map<String, dynamic> json,
+  ) {
+    var version = schemaVersion;
+    var payload = json;
+    while (!_factories.containsKey((eventType, version))) {
+      final upcaster = _upcasters[(eventType, version)];
+      if (upcaster == null) {
+        throw UnknownEventTypeException(eventType, version);
+      }
+      payload = upcaster.upcast(payload);
+      version++;
+    }
+    return _factories[(eventType, version)]!(payload);
+  }
+}
+
 class UnknownEventTypeException implements Exception {
   final String eventType;
   final int schemaVersion;

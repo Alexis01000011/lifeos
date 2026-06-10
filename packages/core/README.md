@@ -1,6 +1,6 @@
-# Fase 0 — Abstracciones del core (borrador para crítica)
+# core — abstracciones ES+CQRS
 
-Borrador del 2026-06-09. Seis archivos, cero dependencias externas (ni Drift ni Flutter): esto es el **hexágono interior**. Drift aparece recién en las implementaciones de `EventStore`, `Projector` y `ProjectionCheckpointStore`.
+Siete archivos, cero dependencias externas (ni Drift ni Flutter): esto es el **hexágono interior**. Drift aparece recién en el adaptador `core_drift` (ADR-0006), que implementa `EventStore` y `ProjectionCheckpointStore`.
 
 ## Mapa
 
@@ -12,7 +12,8 @@ Borrador del 2026-06-09. Seis archivos, cero dependencias externas (ni Drift ni 
 | `repository.dart` | `AggregateRepository<T>` | Solo `load`/`save`. El `expectedVersion` se calcula solo. |
 | `command.dart` | `Command`, `CommandHandler`, `DomainException` | La UI despacha intenciones; las reglas viven en el agregado, el handler solo orquesta. |
 | `projection.dart` | `Projector`, `ProjectionCheckpointStore` | Contrato async aunque la ejecución hoy sea síncrona. `reset()` + replay = prueba ácida de fuente de verdad única. |
-| `event_serialization.dart` | `EventTypeRegistry`, `Upcaster` | Versionado: weak schema por defecto, upcasters encadenados cuando no alcance. `eventType` string estable, nunca `runtimeType`. |
+| `projection_engine.dart` | `ProjectionEngine` | ADR-0004: el store persiste, el engine despacha (filtro por eventType, checkpoints, idempotencia). El mismo despacho sirve al append síncrono y a `rebuild()` — la mecánica de la prueba ácida. |
+| `event_serialization.dart` | `EventTypeRegistry`, `DefaultEventTypeRegistry`, `Upcaster` | Versionado: weak schema por defecto, upcasters encadenados cuando no alcance. `eventType` string estable, nunca `runtimeType`. |
 
 ## Flujo completo (el walking skeleton lo recorre entero)
 
