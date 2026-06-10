@@ -6,7 +6,7 @@
 
 Una app Android personal, modular y local-first: un *hub* de estadísticas de vida. Cada área (gimnasio, ánimo, música, journaling...) es un módulo independiente; el hub central agrega y correlaciona datos entre ellos. Es a la vez herramienta de uso diario y proyecto deliberado de aprendizaje de ingeniería a nivel industria.
 
-**Usuario objetivo:** Alexis. Uno solo. Esto libera de muchas cosas (auth, multi-tenancy) y obliga a otra: la app tiene que ser tan cómoda que se use de verdad todos los días.
+**Usuario objetivo:** Alexis. Uno solo. Esto libera de muchas cosas (auth, multi-tenancy) y obliga a otra: la app tiene que ser tan cómoda que se use de verdad todos los días. Es una app de Alexis para Alexis.
 
 ## Principios (no negociables sin ADR)
 
