@@ -23,9 +23,9 @@ Una sola acción de punta a punta: **loggear un workout y ver el historial con u
 - [x] **Fase 1 — Gym write-side** (2026-06-10): paquete `gym` (depende solo de core) con agregado `Workout` como ciclo de vida (ADR-0007) y comandos `StartWorkout`/`LogSet`/`CompleteWorkout`; 16 tests de invariantes, serialización y flujo de handlers sobre `InMemoryEventStore` (nuevo en `core/testing`)
 - [x] **Fase 2 — Read-side** (2026-06-10): proyecciones de historial y volumen semanal con SQL crudo + notifyUpdates (ADR-0008), API de consulta `GymReadModels`, y la prueba ácida oficial pasando contra tablas reales (reset + replay ≡ estado idéntico); reloj inyectable en `DriftEventStore` y `TestDatabase` compartida en `core_drift/testing`
 - [x] **Fase 3 — UI** (2026-06-10): app shell en `app/` (Flutter, targets android+windows) con composition root en Riverpod 3 — `databaseProvider` overrideado en main(), todo lo demás derivado; helper `watchQuery` (tableUpdates → re-query) en core_drift cerrando el pendiente de ADR-0008; pantallas Entrenar (workout en curso desde proyección, despacho de comandos, DomainException → SnackBar) e Historial (volumen semanal + entrenos); 3 tests de widget corren el esqueleto entero por la UI real contra SQLite en memoria
-- [ ] **Fase 4 — Frontera hub↔módulo:** primer integration event (`gym.workout_completed` v1) publicado por gym y consumido por un hub esqueleto que muestre "entrenos esta semana: N"
+- [x] **Fase 4 — Frontera hub↔módulo** (2026-06-10): integration events con log persistido tipo outbox (ADR-0009) — `gym.workout_completed` v1 documentado en `docs/integration-events.md`, publicado por una policy de gym (idempotente por causation id, "lo publicado no se despublica") y consumido por el paquete nuevo `hub` (depende solo de core, con su propia prueba ácida sobre el log de integración); pantalla Inicio con "entrenos esta semana: N" clickeable hacia el módulo — el embrión de la pantalla principal
 
-**Gate de salida:** la prueba ácida pasa (borrar proyecciones + replay = mismo estado) y el flujo completo corre en el A71 físico.
+**Gate de salida:** la prueba ácida pasa (borrar proyecciones + replay = mismo estado) ✅ y el flujo completo corre en el A71 físico — la versión de Fase 3 ya corrió en el A71 (2026-06-10); falta correr la versión con hub para cerrar el hito.
 
 ## Hito 2 — Gym usable a diario (= MVP)
 
