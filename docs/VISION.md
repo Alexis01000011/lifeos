@@ -24,7 +24,7 @@ Flutter/Dart · Drift (SQLite) · Riverpod (estado + DI, ADR-0002) · Event Sour
 | Módulo | Estado | Dominio |
 |---|---|---|
 | **hub** | esqueleto (Fase 4) | Agregación y correlación entre módulos; pantalla de inicio |
-| **gym** | en construcción (Hito 1) | Workouts, ejercicios, progresión de cargas |
+| **gym** | en uso, rumbo a MVP (Hito 2) | Workouts, ejercicios, progresión de cargas |
 | **days** | futuro | Calificar el día (nota + tags); candidato a 2º módulo por su simpleza |
 | **journal** | futuro | Journaling de texto libre |
 | **music** | futuro | Escuchas y calificación de música |

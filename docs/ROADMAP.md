@@ -14,7 +14,7 @@ Cada hito termina con su casilla marcada y, si hubo decisiones, su ADR. Este doc
 - [x] Repo, visión, roadmap, protocolo ADR
 - [x] Conectar repo a GitHub (manual, Alexis)
 
-## Hito 1 — Walking skeleton (Fases 0→4 en vertical)
+## Hito 1 — Walking skeleton (Fases 0→4 en vertical) ✅ (2026-06-10)
 
 Una sola acción de punta a punta: **loggear un workout y ver el historial con una estadística derivada**. Valida toda la arquitectura con el mínimo de código.
 
@@ -25,15 +25,21 @@ Una sola acción de punta a punta: **loggear un workout y ver el historial con u
 - [x] **Fase 3 — UI** (2026-06-10): app shell en `app/` (Flutter, targets android+windows) con composition root en Riverpod 3 — `databaseProvider` overrideado en main(), todo lo demás derivado; helper `watchQuery` (tableUpdates → re-query) en core_drift cerrando el pendiente de ADR-0008; pantallas Entrenar (workout en curso desde proyección, despacho de comandos, DomainException → SnackBar) e Historial (volumen semanal + entrenos); 3 tests de widget corren el esqueleto entero por la UI real contra SQLite en memoria
 - [x] **Fase 4 — Frontera hub↔módulo** (2026-06-10): integration events con log persistido tipo outbox (ADR-0009) — `gym.workout_completed` v1 documentado en `docs/integration-events.md`, publicado por una policy de gym (idempotente por causation id, "lo publicado no se despublica") y consumido por el paquete nuevo `hub` (depende solo de core, con su propia prueba ácida sobre el log de integración); pantalla Inicio con "entrenos esta semana: N" clickeable hacia el módulo — el embrión de la pantalla principal
 
-**Gate de salida:** la prueba ácida pasa (borrar proyecciones + replay = mismo estado) ✅ y el flujo completo corre en el A71 físico — la versión de Fase 3 ya corrió en el A71 (2026-06-10); falta correr la versión con hub para cerrar el hito.
+**Gate de salida — cumplido (2026-06-10):** la prueba ácida pasa ✅ y el flujo completo corrió en el A71 físico con un entreno real (leg day: 23 series, 11,440 kg de volumen). La base se extrajo del dispositivo por adb y la prueba ácida se corrió **contra los datos reales** (`app/test/acid_real_device_test.dart`): reset + replay de los 30 eventos reproduce el estado en vivo tabla por tabla, hub incluido. La arquitectura completa quedó validada con uso de verdad, no con fixtures.
 
 ## Hito 2 — Gym usable a diario (= MVP)
 
-Del esqueleto a herramienta real. Alcance orientativo, se refina al cerrar Hito 1:
+Del esqueleto a herramienta real. Alcance refinado con el feedback del primer uso real en el gimnasio (2026-06-10):
 
 - [ ] Catálogo de ejercicios propio (crear/editar ejercicios)
 - [ ] Registro cómodo de series/reps/peso durante el entreno (UX de gimnasio: rápido, una mano)
+  - Mini-registro de las últimas ~3 series en pantalla ("¿en qué serie voy?")
+  - Peso en lb convertible a kg (las mancuernas del gym mezclan unidades; datos normalizados en kg)
+  - Representar dropsets (hoy el workaround es varias series con descanso de 1-5 s)
 - [ ] Corrección de errores vía eventos compensatorios (WorkoutCorrected/Discarded — sin UPDATE)
+  - Cancelar/descartar un entreno empezado por error (pasó el primer día: un tap curioso en "Empezar" dejó un entreno en curso imposible de abandonar)
+- [ ] Semántica del descanso: hoy es `restBeforeSeconds` (descanso ANTES de la serie); revisar qué pasa con la primera y la última serie del entreno y dejarlo explícito en la UI
+- [ ] Detalle de un entreno pasado: tocar un workout en Historial y ver sus series
 - [ ] Estadísticas de progresión: PRs, volumen por grupo muscular, tendencia por ejercicio
 - [ ] Empezar periodo de prueba de 2 semanas de uso real
 

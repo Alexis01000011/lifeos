@@ -28,6 +28,11 @@ módulos. Cero lógica de negocio.
 loggear → terminar → historial) contra SQLite en memoria, con la misma
 composición que producción salvo el override de la database.
 
+`test/acid_real_device_test.dart` corre la prueba ácida contra bases REALES
+extraídas del A71 (instrucciones de extracción en el propio archivo; las
+bases van en `tmp/`, gitignoreado por ser datos personales). Si `tmp/` está
+vacío el test se salta — es una herramienta de auditoría, no parte del CI.
+
 ## Correr
 
 - PC: `flutter run -d windows`
