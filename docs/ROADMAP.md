@@ -12,7 +12,7 @@ Cada hito termina con su casilla marcada y, si hubo decisiones, su ADR. Este doc
 - [x] Decisión UI/DI: Riverpod (ADR-0002)
 - [x] Borrador de abstracciones core (`packages/core`)
 - [x] Repo, visión, roadmap, protocolo ADR
-- [ ] Conectar repo a GitHub (manual, Alexis)
+- [x] Conectar repo a GitHub (manual, Alexis)
 
 ## Hito 1 — Walking skeleton (Fases 0→4 en vertical)
 
