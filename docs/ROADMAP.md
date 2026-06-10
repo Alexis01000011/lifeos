@@ -35,9 +35,11 @@ Del esqueleto a herramienta real. Alcance refinado con el feedback del primer us
 - [ ] Registro cómodo de series/reps/peso durante el entreno (UX de gimnasio: rápido, una mano)
   - Mini-registro de las últimas ~3 series en pantalla ("¿en qué serie voy?")
   - Peso en lb convertible a kg (las mancuernas del gym mezclan unidades; datos normalizados en kg)
-  - Representar dropsets (hoy el workaround es varias series con descanso de 1-5 s)
+  - Representar dropsets (semántica real observada el primer día: 70 kg → ~15 s quitando discos → 40 kg; hoy el workaround es series consecutivas con descanso corto)
+  - Registro en diferido de series olvidadas (pasó el primer día: "olvidé registrar la pasada, registro 2 ahora" — quedaron 4 s aparte con el mismo descanso)
 - [ ] Corrección de errores vía eventos compensatorios (WorkoutCorrected/Discarded — sin UPDATE)
-  - Cancelar/descartar un entreno empezado por error (pasó el primer día: un tap curioso en "Empezar" dejó un entreno en curso imposible de abandonar)
+  - Cancelar/descartar un entreno empezado por error (pasó el primer día: un tap curioso en "Empezar" dejó un entreno en curso imposible de abandonar — y forzó series "Ok" 0 kg para poder completarlo)
+  - Backlog real de correcciones del 2026-06-10, para estrenar los compensatorios con datos verdaderos: descartar los 2 entrenos fantasma (db99e5a0 completado con series "Ok"; bf0d7bfd aún en curso) y agregar la serie de calves 40 kg que faltó entre las dropsets
 - [ ] Semántica del descanso: hoy es `restBeforeSeconds` (descanso ANTES de la serie); revisar qué pasa con la primera y la última serie del entreno y dejarlo explícito en la UI
 - [ ] Detalle de un entreno pasado: tocar un workout en Historial y ver sus series
 - [ ] Estadísticas de progresión: PRs, volumen por grupo muscular, tendencia por ejercicio
