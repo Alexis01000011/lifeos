@@ -30,6 +30,8 @@ Flutter/Dart · Drift (SQLite) · Riverpod (estado + DI, ADR-0002) · Event Sour
 | **music** | futuro | Escuchas y calificación de música |
 | *...más* | futuro | Cualquier estadística personal que valga la pena medir |
 
+**La pantalla principal es el hub.** Al abrir la app se ven las estadísticas que los módulos publican; esa misma pantalla es el punto de entrada hacia ellos (tocar una estadística navega al módulo). Los módulos se enchufan y desenchufan según su recurrencia en la vida de Alexis, y la pantalla principal refleja los activos sin que el resto se entere — es la cara visible de la Regla 1. La meta de fondo: registrar hoy con fricción mínima para correlacionar cuando haya volumen de históricos; las estadísticas ricas son consecuencia de los datos acumulados, no requisito de entrada de ningún módulo.
+
 ## Contrato hub ↔ módulo
 
 Esta sección es la que protege el futuro. Todo módulo nuevo entra cumpliendo esto y *nada más que esto*:
