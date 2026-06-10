@@ -2,8 +2,12 @@
 .dart_tool/
 build/
 .packages
-pubspec.lock # solo para paquetes; quitar esta línea en la app
-*.g.dart # generado (Drift, Riverpod codegen) — decidir si se versiona al llegar ahí
+
+# Solo para paquetes; quitar esta línea en la app
+pubspec.lock
+
+# Generado (Drift, Riverpod codegen) — decidir si se versiona al llegar ahí
+*.g.dart
 
 # IDE
 .idea/
