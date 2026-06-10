@@ -18,7 +18,8 @@ Cada hito termina con su casilla marcada y, si hubo decisiones, su ADR. Este doc
 
 Una sola acción de punta a punta: **loggear un workout y ver el historial con una estadística derivada**. Valida toda la arquitectura con el mínimo de código.
 
-- [ ] **Fase 0 — Core:** cerrar preguntas abiertas del README de `core` (generación de eventId/occurredAt, wiring de proyecciones) e implementar event store en Drift (append atómico + proyecciones síncronas en la misma transacción, concurrencia optimista, readAll para replay)
+- [x] **Fase 0a — Decisiones de core cerradas** (2026-06-10): eventId/occurredAt en el append (ADR-0003), ProjectionEngine aparte (ADR-0004), DomainException con string hasta el 2º módulo (ADR-0005), snapshots e integration events confirmados diferidos
+- [ ] **Fase 0b — Core implementado:** ProjectionEngine + event store en Drift (append atómico + proyecciones síncronas en la misma transacción, concurrencia optimista, readAll para replay)
 - [ ] **Fase 1 — Gym write-side:** agregado Workout + comandos LogWorkout, con tests de invariantes
 - [ ] **Fase 2 — Read-side:** proyección de historial + 1 estadística derivada (p. ej. volumen semanal), test de replay (`reset()` + readAll ≡ estado idéntico)
 - [ ] **Fase 3 — UI:** `flutter create` de la app shell, 2 pantallas (loggear / historial) con Riverpod + StreamProvider sobre Drift
@@ -39,6 +40,7 @@ Del esqueleto a herramienta real. Alcance orientativo, se refina al cerrar Hito 
 ## Hito 3 — Post-MVP: validar la modularidad
 
 - [ ] Módulo **days** (calificar el día): trivial en dominio, su valor es probar que el checklist de "agregar un módulo" funciona sin tocar gym ni core
+- [ ] Migrar `DomainException` a errores tipados por módulo (trigger pactado en ADR-0005; lo reemplaza un ADR nuevo)
 - [ ] Primera correlación real en el hub (ánimo vs. días de entreno)
 - [ ] Retro de arquitectura: ¿qué dolió? → ADRs correctivos
 

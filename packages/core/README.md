@@ -18,16 +18,16 @@ Borrador del 2026-06-09. Seis archivos, cero dependencias externas (ni Drift ni 
 
 UI → `Command` → `CommandHandler` → `Repository.load()` → método de negocio del agregado → `raise()` → `Repository.save()` → `EventStore.append()` —(misma transacción Drift)→ `Projector.project()` → tabla de lectura → stream Drift → Riverpod `StreamProvider` → UI se redibuja.
 
-## Preguntas abiertas (para discutir antes de implementar)
+## Preguntas cerradas (2026-06-10)
 
-1. **¿Dónde se generan `eventId` y `occurredAt`?** Propuesta: en el `append` del store (infraestructura) para mantener `raise()` puro. Alternativa: en `raise()`, pero entonces el agregado necesita un reloj/uuid inyectado.
-2. **¿El wiring evento→projector vive en el EventStore de Drift o en un `ProjectionEngine` aparte que el store invoca?** Lo segundo es más limpio pero es una pieza más.
-3. **Snapshots**: el contrato `readStream(fromVersion)` ya deja la puerta abierta. ¿Confirmamos que no hay interfaz de snapshot hasta que un stream duela?
-4. **Integration events (Fase 4)**: el hub necesitará un bus para eventos entre módulos. Deliberadamente fuera de Fase 0 — ¿de acuerdo en que el walking skeleton no lo necesita?
-5. **`DomainException` con string**: ¿suficiente, o prefieres errores tipados por módulo desde ya?
+1. **`eventId`/`occurredAt` se generan en el `append` del store** → ADR-0003. `raise()` queda puro; el tiempo de negocio, cuando haga falta (registro en diferido), es campo del payload del evento.
+2. **Wiring evento→projector en un `ProjectionEngine` aparte** → ADR-0004. El store persiste, el engine despacha; el replay de la prueba ácida reutiliza el mismo despacho.
+3. **Snapshots: sin interfaz hasta que un stream duela.** Ya estaba decidido en ADR-0001; confirmado.
+4. **Integration events quedan fuera de Fase 0**, llegan en Fase 4 como indica el roadmap. Vigilar que las abstracciones de Fase 0 no horneen supuestos que estorben (p. ej. que `EventTypeRegistry` asuma que todo evento es de dominio).
+5. **`DomainException` con string por ahora** → ADR-0005. Migración a errores tipados por módulo al crear el segundo módulo (registrado en ROADMAP, Hito 3).
 
 ## Críticas que yo mismo le haría
 
-- `rehydrate()` confía en que los envelopes llegan ordenados; el contrato de `readStream` debería decirlo explícitamente (lo dice implícitamente, mala señal).
+- ~~`rehydrate()` confía en que los envelopes llegan ordenados; el contrato de `readStream` debería decirlo explícitamente.~~ Resuelto 2026-06-10: el orden de lectura es ahora invariante explícito del contrato de `EventStore`.
 - `AggregateRepository` concreto (no interfaz). Si algún día hay snapshots, se vuelve interfaz con implementación alternativa. Por ahora YAGNI.
 - No hay `CommandBus`/mediator: la UI conocerá handlers concretos vía Riverpod. Menos indirección; revisar si molesta en Fase 4.
