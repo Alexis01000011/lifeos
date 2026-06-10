@@ -21,9 +21,9 @@ class RenameDataUpcaster implements Upcaster {
 }
 
 void main() {
-  late DefaultEventTypeRegistry registry;
+  late DefaultEventTypeRegistry<DomainEvent> registry;
 
-  setUp(() => registry = DefaultEventTypeRegistry());
+  setUp(() => registry = DefaultEventTypeRegistry<DomainEvent>());
 
   test('roundtrip: deserializa con la fábrica exacta de (tipo, versión)', () {
     registry.register(

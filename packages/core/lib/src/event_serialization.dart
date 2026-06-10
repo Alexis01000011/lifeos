@@ -1,26 +1,37 @@
-import 'domain_event.dart';
-
 /// Registro de deserializadores: (eventType, schemaVersion) → fábrica.
 ///
 /// Aquí vive el costo permanente de ES que discutimos: los eventos
 /// persistidos son un contrato para siempre. Este registro es el único
 /// punto del sistema que conoce TODAS las versiones históricas de cada
 /// evento.
-abstract class EventTypeRegistry {
+///
+/// Genérico sobre [E] desde Fase 4: el mecanismo de serialización es el
+/// mismo para domain events (E = DomainEvent) e integration events
+/// (E = IntegrationEvent), pero los registries son instancias separadas —
+/// mezclar las taxonomías sería un error de tipos, no solo de disciplina.
+abstract class EventTypeRegistry<E> {
   void register(
     String eventType,
     int schemaVersion,
-    DomainEvent Function(Map<String, dynamic> json) factory,
+    E Function(Map<String, dynamic> json) factory,
   );
 
   /// Lanza [UnknownEventTypeException] si nadie registró ese tipo/versión.
   /// Política estricta a propósito: un evento que no sabemos leer es un bug
   /// de versionado, no algo que ignorar en silencio.
-  DomainEvent deserialize(
+  E deserialize(
     String eventType,
     int schemaVersion,
     Map<String, dynamic> json,
   );
+
+  /// ¿Hay alguna fábrica registrada para [eventType], en cualquier versión?
+  ///
+  /// Distingue dos situaciones que la política estricta trata distinto:
+  /// un TIPO desconocido puede ser legítimo (un integration event sin
+  /// consumidor actual se persiste y se salta); una VERSIÓN inalcanzable
+  /// de un tipo conocido es un bug de upcasters y debe explotar.
+  bool knows(String eventType);
 }
 
 /// Transforma el JSON de una versión vieja de un evento a la siguiente.
@@ -49,16 +60,15 @@ abstract class Upcaster {
 /// [deserialize] busca fábrica exacta para (tipo, versión); si no hay,
 /// aplica upcasters v→v+1 hasta alcanzar una versión registrada. Si la
 /// cadena se corta, [UnknownEventTypeException] — política estricta.
-class DefaultEventTypeRegistry implements EventTypeRegistry {
-  final Map<(String, int), DomainEvent Function(Map<String, dynamic>)>
-      _factories = {};
+class DefaultEventTypeRegistry<E> implements EventTypeRegistry<E> {
+  final Map<(String, int), E Function(Map<String, dynamic>)> _factories = {};
   final Map<(String, int), Upcaster> _upcasters = {};
 
   @override
   void register(
     String eventType,
     int schemaVersion,
-    DomainEvent Function(Map<String, dynamic> json) factory,
+    E Function(Map<String, dynamic> json) factory,
   ) {
     _factories[(eventType, schemaVersion)] = factory;
   }
@@ -68,7 +78,11 @@ class DefaultEventTypeRegistry implements EventTypeRegistry {
   }
 
   @override
-  DomainEvent deserialize(
+  bool knows(String eventType) =>
+      _factories.keys.any((key) => key.$1 == eventType);
+
+  @override
+  E deserialize(
     String eventType,
     int schemaVersion,
     Map<String, dynamic> json,

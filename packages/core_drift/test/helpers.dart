@@ -17,9 +17,10 @@ class TestEvent implements DomainEvent {
   Map<String, dynamic> toJson() => {'data': data};
 }
 
-DefaultEventTypeRegistry testRegistry() => DefaultEventTypeRegistry()
-  ..register('test.logged', 1,
-      (json) => TestEvent('test.logged', json['data'] as String));
+DefaultEventTypeRegistry<DomainEvent> testRegistry() =>
+    DefaultEventTypeRegistry<DomainEvent>()
+      ..register('test.logged', 1,
+          (json) => TestEvent('test.logged', json['data'] as String));
 
 /// Projector REAL contra la misma database: mantiene un contador por
 /// agregado en una tabla. Sirve para probar que sus escrituras comparten

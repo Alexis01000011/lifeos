@@ -1,0 +1,18 @@
+name: hub
+description: Hub de lifeos - agregación y correlación entre módulos. Solo conoce integration events (VISION Regla 3); depende solo de core.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  core:
+    path: ../core
+  drift: ^2.20.0
+
+dev_dependencies:
+  core_drift:
+    path: ../core_drift
+  lints: ^4.0.0
+  test: ^1.25.0

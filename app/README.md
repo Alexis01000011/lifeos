@@ -16,7 +16,11 @@ módulos. Cero lógica de negocio.
   llegan a la UI como `StreamProvider` sobre `watchQuery` (ADR-0008).
 - `src/screens/` — UI delgada: lee proyecciones, despacha comandos; las
   invariantes del dominio llegan como `DomainException` y se muestran tal
-  cual (SnackBar).
+  cual (SnackBar). `home_screen.dart` (Inicio) es el embrión de la pantalla
+  principal de VISION: estadísticas del hub, clickeables hacia el módulo.
+- Fase 4: `integrationEventLogProvider` compone el log de integración
+  (ADR-0009) con los projectors del hub; la policy de gym se registra en el
+  engine principal junto a los projectors del módulo.
 
 ## Tests
 

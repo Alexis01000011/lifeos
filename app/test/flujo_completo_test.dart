@@ -4,19 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gym/gym.dart';
+import 'package:hub/hub.dart';
 import 'package:lifeos_app/main.dart';
 import 'package:lifeos_app/src/providers.dart';
 
 /// El walking skeleton de punta a punta por la UI real: empezar entreno,
-/// registrar series, terminarlo y verlo en el historial con su volumen.
-/// Misma composición que main(), con la database en memoria.
+/// registrar series, terminarlo, verlo en el historial y ver la estadística
+/// del hub en Inicio (integration event mediante). Misma composición que
+/// main(), con la database en memoria.
 void main() {
   setUpAll(configureSqliteNativeLibrary);
 
   Future<TestDatabase> pumpApp(WidgetTester tester) async {
     final db = TestDatabase();
     await createEventStoreSchema(db);
+    await createIntegrationEventSchema(db);
     await createGymReadModelSchema(db);
+    await createHubReadModelSchema(db);
     addTearDown(db.close);
     await tester.pumpWidget(ProviderScope(
       overrides: [databaseProvider.overrideWith((ref) => db)],
@@ -24,6 +28,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
     return db;
+  }
+
+  Future<void> irA(WidgetTester tester, String tab) async {
+    await tester.tap(find.widgetWithText(NavigationDestination, tab));
+    await tester.pumpAndSettle();
   }
 
   Future<void> registrarSerie(
@@ -39,10 +48,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('empezar → loggear → terminar → historial', (tester) async {
+  testWidgets('empezar → loggear → terminar → historial → hub en Inicio',
+      (tester) async {
     await pumpApp(tester);
 
-    // Sin entreno en curso: solo está el botón de empezar.
+    // Arranca en Inicio: la estadística del hub en cero.
+    expect(find.text('Entrenos esta semana'), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+
+    await irA(tester, 'Entrenar');
     expect(find.byKey(const Key('empezar')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('empezar')));
@@ -60,16 +74,25 @@ void main() {
     expect(find.byKey(const Key('empezar')), findsOneWidget);
 
     // Historial: el entreno completado y el volumen semanal derivado.
-    await tester.tap(find.text('Historial'));
-    await tester.pumpAndSettle();
+    await irA(tester, 'Historial');
     expect(find.text('2 series · 1440 kg'), findsOneWidget);
     expect(find.textContaining('Semana del'), findsOneWidget);
     expect(find.text('en curso'), findsNothing);
+
+    // Inicio: el integration event cruzó la frontera hacia el hub.
+    await irA(tester, 'Inicio');
+    expect(find.text('1'), findsOneWidget);
+
+    // La estadística es un atajo al módulo (visor/redireccionador).
+    await tester.tap(find.byKey(const Key('stat-gym')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Semana del'), findsOneWidget);
   });
 
   testWidgets('las invariantes del dominio llegan como SnackBar',
       (tester) async {
     await pumpApp(tester);
+    await irA(tester, 'Entrenar');
     await tester.tap(find.byKey(const Key('empezar')));
     await tester.pumpAndSettle();
 
@@ -90,6 +113,7 @@ void main() {
   testWidgets('input no numérico se rechaza en la UI, sin tocar el dominio',
       (tester) async {
     final db = await pumpApp(tester);
+    await irA(tester, 'Entrenar');
     await tester.tap(find.byKey(const Key('empezar')));
     await tester.pumpAndSettle();
 

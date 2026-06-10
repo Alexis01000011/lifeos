@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/database.dart';
 import 'src/providers.dart';
 import 'src/screens/history_screen.dart';
+import 'src/screens/home_screen.dart';
 import 'src/screens/log_workout_screen.dart';
 
 Future<void> main() async {
@@ -45,15 +46,22 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_index == 0 ? 'Entrenar' : 'Historial')),
+      appBar: AppBar(
+          title: Text(switch (_index) {
+        0 => 'lifeos',
+        1 => 'Entrenar',
+        _ => 'Historial',
+      })),
       body: switch (_index) {
-        0 => const LogWorkoutScreen(),
+        0 => HomeScreen(onOpenGym: () => setState(() => _index = 2)),
+        1 => const LogWorkoutScreen(),
         _ => const HistoryScreen(),
       },
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Inicio'),
           NavigationDestination(
               icon: Icon(Icons.fitness_center), label: 'Entrenar'),
           NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),

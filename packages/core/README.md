@@ -1,6 +1,6 @@
 # core — abstracciones ES+CQRS
 
-Siete archivos, cero dependencias externas (ni Drift ni Flutter): esto es el **hexágono interior**. Drift aparece recién en el adaptador `core_drift` (ADR-0006), que implementa `EventStore` y `ProjectionCheckpointStore`.
+Cero dependencias externas (ni Drift ni Flutter): esto es el **hexágono interior**. Drift aparece recién en el adaptador `core_drift` (ADR-0006), que implementa `EventStore`, `ProjectionCheckpointStore` e `IntegrationEventLog`.
 
 ## Mapa
 
@@ -13,7 +13,9 @@ Siete archivos, cero dependencias externas (ni Drift ni Flutter): esto es el **h
 | `command.dart` | `Command`, `CommandHandler`, `DomainException` | La UI despacha intenciones; las reglas viven en el agregado, el handler solo orquesta. |
 | `projection.dart` | `Projector`, `ProjectionCheckpointStore` | Contrato async aunque la ejecución hoy sea síncrona. `reset()` + replay = prueba ácida de fuente de verdad única. |
 | `projection_engine.dart` | `ProjectionEngine` | ADR-0004: el store persiste, el engine despacha (filtro por eventType, checkpoints, idempotencia). El mismo despacho sirve al append síncrono y a `rebuild()` — la mecánica de la prueba ácida. |
-| `event_serialization.dart` | `EventTypeRegistry`, `DefaultEventTypeRegistry`, `Upcaster` | Versionado: weak schema por defecto, upcasters encadenados cuando no alcance. `eventType` string estable, nunca `runtimeType`. |
+| `event_serialization.dart` | `EventTypeRegistry<E>`, `DefaultEventTypeRegistry<E>`, `Upcaster` | Versionado: weak schema por defecto, upcasters encadenados cuando no alcance. `eventType` string estable, nunca `runtimeType`. Genérico: el mismo mecanismo sirve a domain e integration events, en instancias separadas. |
+| `integration_event.dart` | `IntegrationEvent`, `IntegrationEventEnvelope`, `IntegrationEventLog`, `IntegrationProjector`, `IntegrationProjectionEngine` | ADR-0009: la API pública entre módulos es un log persistido (outbox); tipo distinto de `DomainEvent` a propósito — el sistema de tipos vigila la frontera. |
+| `time.dart` | `isoWeekStartUtc` | Shared kernel mínimo: calendario determinista que comparten read models de varios contextos. |
 
 ## Flujo completo (el walking skeleton lo recorre entero)
 
@@ -24,7 +26,7 @@ UI → `Command` → `CommandHandler` → `Repository.load()` → método de neg
 1. **`eventId`/`occurredAt` se generan en el `append` del store** → ADR-0003. `raise()` queda puro; el tiempo de negocio, cuando haga falta (registro en diferido), es campo del payload del evento.
 2. **Wiring evento→projector en un `ProjectionEngine` aparte** → ADR-0004. El store persiste, el engine despacha; el replay de la prueba ácida reutiliza el mismo despacho.
 3. **Snapshots: sin interfaz hasta que un stream duela.** Ya estaba decidido en ADR-0001; confirmado.
-4. **Integration events quedan fuera de Fase 0**, llegan en Fase 4 como indica el roadmap. Vigilar que las abstracciones de Fase 0 no horneen supuestos que estorben (p. ej. que `EventTypeRegistry` asuma que todo evento es de dominio).
+4. **Integration events quedan fuera de Fase 0**, llegan en Fase 4 como indica el roadmap. ~~Vigilar que las abstracciones de Fase 0 no horneen supuestos que estorben (p. ej. que `EventTypeRegistry` asuma que todo evento es de dominio).~~ Resuelto en Fase 4: el registry se volvió genérico (`EventTypeRegistry<E>`) sin tocar su lógica — el supuesto no estaba horneado.
 5. **`DomainException` con string por ahora** → ADR-0005. Migración a errores tipados por módulo al crear el segundo módulo (registrado en ROADMAP, Hito 3).
 
 ## Críticas que yo mismo le haría

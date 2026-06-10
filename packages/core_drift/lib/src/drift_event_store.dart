@@ -15,7 +15,7 @@ import 'package:uuid/uuid.dart';
 /// metadata de persistencia es responsabilidad de la infraestructura.
 class DriftEventStore implements EventStore {
   final GeneratedDatabase _db;
-  final EventTypeRegistry _registry;
+  final EventTypeRegistry<DomainEvent> _registry;
   final ProjectionEngine _engine;
   final Uuid _uuid = const Uuid();
 

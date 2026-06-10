@@ -26,7 +26,7 @@ void main() {
     await createEventStoreSchema(db);
     await createGymReadModelSchema(db);
 
-    final registry = DefaultEventTypeRegistry();
+    final registry = DefaultEventTypeRegistry<DomainEvent>();
     registerGymEvents(registry);
     engine = ProjectionEngine(
       [WorkoutHistoryProjector(db), WeeklyVolumeProjector(db)],

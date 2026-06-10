@@ -21,6 +21,8 @@ dependencies:
     path: ../packages/core_drift
   gym:
     path: ../packages/gym
+  hub:
+    path: ../packages/hub
 
 dev_dependencies:
   flutter_test:

@@ -6,18 +6,9 @@ import 'package:drift/drift.dart';
 import 'events.dart';
 import 'read_model.dart';
 
-/// Lunes (ISO) de la semana de [moment], como YYYY-MM-DD.
-///
-/// Bucketiza en UTC: simplificación aceptada del esqueleto (un entreno
-/// nocturno puede caer en el día UTC siguiente). Se revisará en Hito 2
-/// junto con el tiempo de negocio (ADR-0003).
-String isoWeekStartUtc(DateTime moment) {
-  final utc = moment.toUtc();
-  final date = DateTime.utc(utc.year, utc.month, utc.day);
-  final monday = date.subtract(Duration(days: date.weekday - DateTime.monday));
-  String pad(int n, int width) => n.toString().padLeft(width, '0');
-  return '${pad(monday.year, 4)}-${pad(monday.month, 2)}-${pad(monday.day, 2)}';
-}
+// isoWeekStartUtc se movió a core en Fase 4 (el hub también bucketiza por
+// semana y no puede importar gym); se re-exporta para no romper a nadie.
+export 'package:core/core.dart' show isoWeekStartUtc;
 
 /// Proyección de historial: una fila por workout, actualizada en vivo.
 /// No es idempotente por sí sola (los acumuladores += dependen de la

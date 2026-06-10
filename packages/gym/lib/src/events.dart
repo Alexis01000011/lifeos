@@ -78,8 +78,8 @@ class WorkoutCompleted implements DomainEvent {
 }
 
 /// Registra los deserializadores del módulo. La app shell lo llama al
-/// componer el registry global.
-void registerGymEvents(EventTypeRegistry registry) {
+/// componer el registry global de domain events.
+void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
   registry.register(WorkoutStarted.type, 1, WorkoutStarted.fromJson);
   registry.register(SetLogged.type, 1, SetLogged.fromJson);
   registry.register(WorkoutCompleted.type, 1, WorkoutCompleted.fromJson);

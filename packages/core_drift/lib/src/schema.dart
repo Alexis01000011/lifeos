@@ -39,3 +39,27 @@ Future<void> createEventStoreSchema(GeneratedDatabase db) async {
     )
   ''');
 }
+
+/// Nombre de la tabla del log de integración (para watchQuery).
+const integrationEventsTable = 'integration_events';
+
+/// DDL del log de integración (patrón outbox, ADR-0009). Misma database
+/// compuesta: publicar comparte la transacción del append.
+///
+/// El UNIQUE sobre `causation_event_id` es la idempotencia del outbox a
+/// nivel físico: un domain event causa a lo sumo UNA publicación, aunque
+/// la policy se re-ejecute en un replay.
+Future<void> createIntegrationEventSchema(GeneratedDatabase db) async {
+  await db.customStatement('''
+    CREATE TABLE IF NOT EXISTS integration_events (
+      sequence           INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id           TEXT    NOT NULL UNIQUE,
+      causation_event_id TEXT    NOT NULL UNIQUE,
+      source_module      TEXT    NOT NULL,
+      event_type         TEXT    NOT NULL,
+      schema_version     INTEGER NOT NULL,
+      payload            TEXT    NOT NULL,
+      occurred_at        INTEGER NOT NULL
+    )
+  ''');
+}

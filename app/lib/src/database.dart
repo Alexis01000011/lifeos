@@ -4,6 +4,7 @@ import 'package:core_drift/core_drift.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:gym/gym.dart';
+import 'package:hub/hub.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -31,6 +32,8 @@ Future<AppDatabase> openAppDatabase() async {
   final file = File(p.join(dir.path, 'lifeos.sqlite'));
   final db = AppDatabase(NativeDatabase.createInBackground(file));
   await createEventStoreSchema(db);
+  await createIntegrationEventSchema(db);
   await createGymReadModelSchema(db);
+  await createHubReadModelSchema(db);
   return db;
 }

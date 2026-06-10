@@ -3,10 +3,10 @@ import 'package:gym/gym.dart';
 import 'package:test/test.dart';
 
 void main() {
-  late DefaultEventTypeRegistry registry;
+  late DefaultEventTypeRegistry<DomainEvent> registry;
 
   setUp(() {
-    registry = DefaultEventTypeRegistry();
+    registry = DefaultEventTypeRegistry<DomainEvent>();
     registerGymEvents(registry);
   });
 

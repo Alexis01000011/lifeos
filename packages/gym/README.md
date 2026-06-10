@@ -24,7 +24,10 @@ Primer módulo de lifeos. Depende **solo** de `core` (regla de fronteras: si est
 
 - Las pantallas y providers viven en la app shell (`app/`), no acá: gym no depende de Flutter ni de Riverpod. La UI consume `GymReadModels` vía `watchQuery` (core_drift) y despacha los comandos de este paquete.
 
+## Lado público (Fase 4)
+
+- `PublishWorkoutCompletedPolicy` (ADR-0009): traduce el domain event `gym.workout_completed` al integration event homónimo — contrato distinto, log distinto, documentado en `docs/integration-events.md`. Idempotente por causation id; su `reset()` es no-op: lo publicado no se despublica.
+
 ## Pendiente
 
-- **Fase 4**: integration event `gym.workout_completed` v1 hacia el hub (contrato público, distinto del domain event homónimo).
 - **Hito 2**: catálogo de ejercicios, eventos compensatorios (corrección/descarte), registro en diferido.
