@@ -20,8 +20,11 @@ Primer módulo de lifeos. Depende **solo** de `core` (regla de fronteras: si est
 - **`GymReadModels`**: API de consulta con DTOs (`WorkoutSummary`, `WeeklyVolume`) que la UI envolverá en providers.
 - La **prueba ácida** corre contra estas tablas en `test/projections_test.dart`.
 
+## UI (Fase 3)
+
+- Las pantallas y providers viven en la app shell (`app/`), no acá: gym no depende de Flutter ni de Riverpod. La UI consume `GymReadModels` vía `watchQuery` (core_drift) y despacha los comandos de este paquete.
+
 ## Pendiente
 
-- **Fase 3**: pantallas (loggear / historial) y providers; helper de reactividad tableUpdates → re-query.
 - **Fase 4**: integration event `gym.workout_completed` v1 hacia el hub (contrato público, distinto del domain event homónimo).
 - **Hito 2**: catálogo de ejercicios, eventos compensatorios (corrección/descarte), registro en diferido.

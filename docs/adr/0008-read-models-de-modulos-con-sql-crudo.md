@@ -23,6 +23,6 @@ Opción A. Razón decisiva: mantiene todo el repo sin codegen con un único patr
 
 - Patrón por módulo: `create<Modulo>ReadModelSchema(db)` idempotente (la app lo llama al arrancar), projectors con SQL crudo que terminan en `notifyUpdates`, y una clase de consulta (`GymReadModels`) que devuelve DTOs.
 - Los projectors con acumuladores (`+=`) NO son idempotentes por sí solos: dependen de la guarda de checkpoint del `ProjectionEngine`. Documentado en el código; la prueba ácida lo cubre.
-- Fase 3 necesita un helper de streams (tableUpdates → re-query) en core_drift o en la app; pendiente de esa fase.
+- Fase 3 necesita un helper de streams (tableUpdates → re-query) en core_drift o en la app. *(Resuelto en Fase 3: `watchQuery` en core_drift — es infraestructura genérica reutilizable por cualquier módulo y testeable sin Flutter. Implementado con StreamController explícito, no `async*`: un generador suspendido esperando una notificación que no llega no puede cancelarse, y el cancel de la UI quedaría colgado.)*
 - Los módulos ganan dependencia al runtime de `drift` (framework, no módulo: la regla de fronteras no se toca) y a `core_drift` solo en dev_dependencies (tests de integración).
 - El bucketing semanal usa la semana ISO del `occurredAt` en UTC: simplificación aceptada del esqueleto, a revisar en Hito 2 junto con el tiempo de negocio (ADR-0003).
