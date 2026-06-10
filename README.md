@@ -13,6 +13,7 @@ docs/
   adr/               decisiones de arquitectura (ADRs numerados)
 packages/
   core/              abstracciones ES+CQRS (puro Dart, cero deps)
+  core_drift/        adaptador Drift/SQLite del event store (ADR-0006)
   gym/               (próximamente) primer módulo
   hub/               (próximamente) agregación entre módulos
 app/                 (próximamente) shell Flutter que compone los módulos

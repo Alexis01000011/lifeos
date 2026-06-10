@@ -19,7 +19,7 @@ Cada hito termina con su casilla marcada y, si hubo decisiones, su ADR. Este doc
 Una sola acción de punta a punta: **loggear un workout y ver el historial con una estadística derivada**. Valida toda la arquitectura con el mínimo de código.
 
 - [x] **Fase 0a — Decisiones de core cerradas** (2026-06-10): eventId/occurredAt en el append (ADR-0003), ProjectionEngine aparte (ADR-0004), DomainException con string hasta el 2º módulo (ADR-0005), snapshots e integration events confirmados diferidos
-- [ ] **Fase 0b — Core implementado:** ProjectionEngine + event store en Drift (append atómico + proyecciones síncronas en la misma transacción, concurrencia optimista, readAll para replay)
+- [x] **Fase 0b — Core implementado** (2026-06-10): `ProjectionEngine` y `DefaultEventTypeRegistry` en core (10 tests); paquete `core_drift` (ADR-0006) con event store en Drift — append atómico + proyecciones síncronas en la misma transacción zone-based, concurrencia optimista, readAll para replay (11 tests de integración, incl. rollback por projector fallido y mini prueba ácida)
 - [ ] **Fase 1 — Gym write-side:** agregado Workout + comandos LogWorkout, con tests de invariantes
 - [ ] **Fase 2 — Read-side:** proyección de historial + 1 estadística derivada (p. ej. volumen semanal), test de replay (`reset()` + readAll ≡ estado idéntico)
 - [ ] **Fase 3 — UI:** `flutter create` de la app shell, 2 pantallas (loggear / historial) con Riverpod + StreamProvider sobre Drift
