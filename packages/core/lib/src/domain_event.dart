@@ -50,7 +50,9 @@ class EventEnvelope {
   /// Es el checkpoint de las proyecciones: orden total de todos los eventos.
   final int globalSequence;
 
-  /// Cuándo ocurrió según el dominio (no cuándo se persistió).
+  /// Timestamp de persistencia, generado por el store en el append
+  /// (ADR-0003). Es metadata de auditoría: si un evento necesita tiempo
+  /// de negocio (p. ej. registro en diferido), va como campo del payload.
   final DateTime occurredAt;
 
   final DomainEvent event;

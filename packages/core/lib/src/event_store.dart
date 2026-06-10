@@ -22,6 +22,8 @@ class ConcurrencyException implements Exception {
 /// 2. Atomicidad: un append de N eventos se persiste completo o no se persiste.
 /// 3. Orden total: globalSequence es estrictamente creciente, sin huecos visibles.
 /// 4. Concurrencia optimista: append falla si expectedVersion != versión actual.
+/// 5. Orden de lectura: readStream devuelve por streamVersion ascendente;
+///    readAll por globalSequence ascendente. rehydrate() depende de esto.
 abstract class EventStore {
   /// Versión esperada cuando el stream aún no existe.
   static const int noStream = 0;
@@ -30,6 +32,9 @@ abstract class EventStore {
   ///
   /// [expectedVersion]: la streamVersion que el caller leyó al rehidratar.
   /// Si otro escritor metió eventos en medio, lanza [ConcurrencyException].
+  ///
+  /// La implementación genera aquí eventId y occurredAt (ADR-0003): los
+  /// envelopes devueltos nacen completos; el dominio nunca los fabrica.
   ///
   /// NOTA (decisión 2026-06-09): la implementación Drift actualizará las
   /// proyecciones síncronas DENTRO de esta misma transacción. Eso es detalle
