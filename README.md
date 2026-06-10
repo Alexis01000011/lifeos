@@ -8,15 +8,17 @@ App Android personal, modular y local-first: un hub de estadísticas de vida (gi
 
 ```
 docs/
-  VISION.md          norte del proyecto + contrato hub↔módulo
-  ROADMAP.md         hitos hacia el MVP y después
-  adr/               decisiones de arquitectura (ADRs numerados)
+  VISION.md              norte del proyecto + contrato hub↔módulo
+  ROADMAP.md             hitos hacia el MVP y después
+  integration-events.md  contratos públicos entre módulos (schema-first)
+  adr/                   decisiones de arquitectura (ADRs numerados)
 packages/
-  core/              abstracciones ES+CQRS (puro Dart, cero deps)
-  core_drift/        adaptador Drift/SQLite del event store (ADR-0006)
-  gym/               primer módulo: workouts (write-side listo; proyecciones en Fase 2)
-  hub/               (próximamente) agregación entre módulos
-app/                 (próximamente) shell Flutter que compone los módulos
+  core/                  abstracciones ES+CQRS e integration events (puro Dart, cero deps)
+  core_drift/            adaptador Drift/SQLite: event store, log de integración, watchQuery
+  gym/                   primer módulo: workouts completo en vertical (Hito 1; MVP en Hito 2)
+  hub/                   agregación entre módulos: consume integration events, pantalla Inicio
+app/                     shell Flutter que compone los módulos (composition root Riverpod)
+tmp/                     (gitignoreado) extracciones de la base real del dispositivo
 ```
 
 ## Protocolo de desarrollo
