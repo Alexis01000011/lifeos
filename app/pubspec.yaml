@@ -1,0 +1,31 @@
+name: lifeos_app
+description: "App shell de lifeos: compone database, registry, engine y módulos (única capa que puede depender de todos, ver VISION.md)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.0.0
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  uuid: ^4.4.0
+  core:
+    path: ../packages/core
+  core_drift:
+    path: ../packages/core_drift
+  gym:
+    path: ../packages/gym
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
