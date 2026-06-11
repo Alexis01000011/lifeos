@@ -31,7 +31,8 @@ Una sola acción de punta a punta: **loggear un workout y ver el historial con u
 
 Del esqueleto a herramienta real. Alcance refinado con el feedback del primer uso real en el gimnasio (2026-06-10):
 
-- [ ] Catálogo de ejercicios propio (crear/editar ejercicios)
+- [x] Catálogo de ejercicios propio (2026-06-10, ADR-0011: agregado único `ExerciseCatalog` — la unicidad de nombres es set-validation y vive en el agregado; `exerciseId` opcional en las series por weak schema; vinculación de nombres históricos para que las 27 series viejas a texto libre entren a las estadísticas; variantes = entradas separadas; pantalla Ejercicios + picker con alta al vuelo en Entrenar e Historial)
+  - **Pendiente de cargar en el A71**: el inventario real (`docs/gym_inventario.md`, ~30 ejercicios) desde la pantalla Ejercicios; los 7 nombres ya usados (Calves, Leg press, Leg extension, Pendulum squat, Sumo squat, Abdominal curl, Smith Machine FFE Split Squat) vinculan solos si el ejercicio se crea con el mismo nombre — si se crea con otro, anotarlos como nombre histórico en el alta
 - [ ] Registro cómodo de series/reps/peso durante el entreno (UX de gimnasio: rápido, una mano)
   - Mini-registro de las últimas ~3 series en pantalla ("¿en qué serie voy?")
   - Peso en lb convertible a kg (las mancuernas del gym mezclan unidades; datos normalizados en kg)
