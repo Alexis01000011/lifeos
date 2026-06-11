@@ -41,7 +41,7 @@ Del esqueleto a herramienta real. Alcance refinado con el feedback del primer us
 - [x] Corrección de errores vía eventos compensatorios (2026-06-10, ADR-0010: `workout_discarded` + `set_logged_late`, integration event compensatorio hacia el hub, read models granulares con GROUP BY, catch-up de proyecciones al arrancar)
   - Cancelar/descartar un entreno empezado por error ✅ (botón en Entrenar y menú en Historial)
   - Agregar serie olvidada a un entreno completado ✅ (menú en Historial; se bucketiza en la semana del entreno)
-  - **Pendiente de aplicar en el A71**: el backlog real del 2026-06-10 — descartar los 2 entrenos fantasma (db99e5a0 completado con series "Ok"; bf0d7bfd aún en curso) y agregar la serie de calves 40 kg. Al instalar la versión nueva, el catch-up backfillea `gym_sets`/`hub_workouts` solo; las correcciones se hacen desde la UI y después conviene extraer la base (build debug) y correr la prueba ácida real
+  - **Aplicado en el A71** ✅ (2026-06-10): los 2 fantasmas descartados desde la UI y la serie olvidada de calves registrada (resultó dropset: 70 kg ×10 → 40 kg ×10 con 15 s, el workaround vigente). El catch-up del arranque backfilleó las tablas granulares solo, y la prueba ácida real pasó contra las tres capturas de `tmp/` (generación vieja, base post-wipe y corregida). Incidente del día: un `flutter run` reinstaló la app y **borró los datos del dispositivo**; se restauró desde el backup extraído por adb sin pérdida
 - [ ] Semántica del descanso: hoy es `restBeforeSeconds` (descanso ANTES de la serie); revisar qué pasa con la primera y la última serie del entreno y dejarlo explícito en la UI
 - [ ] Detalle de un entreno pasado: tocar un workout en Historial y ver sus series
 - [ ] Estadísticas de progresión: PRs, volumen por grupo muscular, tendencia por ejercicio
@@ -63,3 +63,4 @@ Journaling · módulo música · sync multi-dispositivo · versión web · snaps
 - **Sobre-ingeniería antes de uso real** → mitigación: gate de Hito 2 es uso, no features.
 - **Versionado de eventos mal manejado al iterar gym** → mitigación: weak schema desde el primer evento; upcaster solo cuando duela.
 - **Pérdida de rumbo entre sesiones** → mitigación: este roadmap + ADRs; toda sesión de diseño termina actualizándolos.
+- **Pérdida de datos del dispositivo** (pasó el 2026-06-10: un `flutter run` reinstaló y borró todo; se restauró del backup adb) → mitigación: extraer la base tras cada entreno real mientras no exista export/backup desde la app — y recordar que `run-as` solo funciona con builds debug.
