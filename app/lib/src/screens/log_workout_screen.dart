@@ -168,8 +168,43 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
               .read(completeWorkoutProvider)
               .handle(CompleteWorkout(workout.workoutId))),
         ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          key: const Key('descartar'),
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Descartar entreno'),
+          style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error),
+          onPressed: () => _confirmarDescarte(workout.workoutId),
+        ),
       ],
     );
+  }
+
+  Future<void> _confirmarDescarte(String workoutId) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Descartar este entreno?'),
+        content: const Text(
+            'Dejará de contar en el historial y las estadísticas. '
+            'Los eventos quedan en el registro, pero no hay deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            key: const Key('confirmar-descarte'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !mounted) return;
+    await _dispatch(() =>
+        ref.read(discardWorkoutProvider).handle(DiscardWorkout(workoutId)));
   }
 
   Widget _counter(BuildContext context, String label, String value) {

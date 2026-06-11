@@ -9,11 +9,17 @@ import 'src/screens/log_workout_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // La única inicialización async de la app: abrir la database compuesta
-  // y asegurar schemas. Todo lo demás se deriva de providers síncronos.
+  // Inicialización async de la app: abrir la database compuesta, asegurar
+  // schemas y poner las proyecciones al día (catch-up, ADR-0010 — así un
+  // projector nuevo de esta versión se backfillea con los eventos viejos).
+  // Todo lo demás se deriva de providers síncronos.
   final db = await openAppDatabase();
-  runApp(ProviderScope(
+  final container = ProviderContainer(
     overrides: [databaseProvider.overrideWith((ref) => db)],
+  );
+  await catchUpProjections(container);
+  runApp(UncontrolledProviderScope(
+    container: container,
     child: const LifeosApp(),
   ));
 }

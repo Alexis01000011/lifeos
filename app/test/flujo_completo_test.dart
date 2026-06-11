@@ -89,6 +89,80 @@ void main() {
     expect(find.textContaining('Semana del'), findsOneWidget);
   });
 
+  Future<void> entrenoCompleto(WidgetTester tester) async {
+    await irA(tester, 'Entrenar');
+    await tester.tap(find.byKey(const Key('empezar')));
+    await tester.pumpAndSettle();
+    await registrarSerie(tester,
+        ejercicio: 'sentadilla', peso: '80', reps: '10');
+    await registrarSerie(tester, ejercicio: 'sentadilla', peso: '80', reps: '8');
+    await tester.tap(find.byKey(const Key('terminar')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('descartar el entreno en curso lo borra sin dejar rastro '
+      '(ADR-0010)', (tester) async {
+    await pumpApp(tester);
+    await irA(tester, 'Entrenar');
+    await tester.tap(find.byKey(const Key('empezar')));
+    await tester.pumpAndSettle();
+
+    // El caso bf0d7bfd: un tap por error y antes no había salida.
+    await tester.tap(find.byKey(const Key('descartar')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-descarte')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('empezar')), findsOneWidget,
+        reason: 'ya no hay workout en curso');
+    await irA(tester, 'Historial');
+    expect(find.text('Todavía no hay entrenos.'), findsOneWidget);
+  });
+
+  testWidgets('descartar un completado desde Historial descuenta también '
+      'la estadística del hub (ADR-0010)', (tester) async {
+    await pumpApp(tester);
+    await entrenoCompleto(tester);
+
+    await irA(tester, 'Inicio');
+    expect(find.text('1'), findsOneWidget);
+
+    await irA(tester, 'Historial');
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descartar…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-descarte')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Todavía no hay entrenos.'), findsOneWidget);
+    await irA(tester, 'Inicio');
+    expect(find.text('0'), findsOneWidget,
+        reason: 'el integration event compensatorio cruzó la frontera');
+  });
+
+  testWidgets('agregar una serie olvidada a un completado suma series y '
+      'volumen (ADR-0010)', (tester) async {
+    await pumpApp(tester);
+    await entrenoCompleto(tester); // 2 series · 1440 kg
+
+    await irA(tester, 'Historial');
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agregar serie olvidada…'));
+    await tester.pumpAndSettle();
+
+    // El caso real: la serie de calves que quedó sin registrar.
+    await tester.enterText(
+        find.byKey(const Key('tardia-ejercicio')), 'calf raises');
+    await tester.enterText(find.byKey(const Key('tardia-peso')), '40');
+    await tester.enterText(find.byKey(const Key('tardia-reps')), '12');
+    await tester.tap(find.byKey(const Key('confirmar-tardia')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 series · 1920 kg'), findsOneWidget);
+  });
+
   testWidgets('las invariantes del dominio llegan como SnackBar',
       (tester) async {
     await pumpApp(tester);
