@@ -37,9 +37,11 @@ Del esqueleto a herramienta real. Alcance refinado con el feedback del primer us
   - Peso en lb convertible a kg (las mancuernas del gym mezclan unidades; datos normalizados en kg)
   - Representar dropsets (semántica real observada el primer día: 70 kg → ~15 s quitando discos → 40 kg; hoy el workaround es series consecutivas con descanso corto)
   - Registro en diferido de series olvidadas (pasó el primer día: "olvidé registrar la pasada, registro 2 ahora" — quedaron 4 s aparte con el mismo descanso)
-- [ ] Corrección de errores vía eventos compensatorios (WorkoutCorrected/Discarded — sin UPDATE)
-  - Cancelar/descartar un entreno empezado por error (pasó el primer día: un tap curioso en "Empezar" dejó un entreno en curso imposible de abandonar — y forzó series "Ok" 0 kg para poder completarlo)
-  - Backlog real de correcciones del 2026-06-10, para estrenar los compensatorios con datos verdaderos: descartar los 2 entrenos fantasma (db99e5a0 completado con series "Ok"; bf0d7bfd aún en curso) y agregar la serie de calves 40 kg que faltó entre las dropsets
+  - Corregir una serie mal registrada (`set_corrected`): exige identidad de serie — se decide acá, junto con los dropsets, que también la necesitan (diferido en ADR-0010)
+- [x] Corrección de errores vía eventos compensatorios (2026-06-10, ADR-0010: `workout_discarded` + `set_logged_late`, integration event compensatorio hacia el hub, read models granulares con GROUP BY, catch-up de proyecciones al arrancar)
+  - Cancelar/descartar un entreno empezado por error ✅ (botón en Entrenar y menú en Historial)
+  - Agregar serie olvidada a un entreno completado ✅ (menú en Historial; se bucketiza en la semana del entreno)
+  - **Pendiente de aplicar en el A71**: el backlog real del 2026-06-10 — descartar los 2 entrenos fantasma (db99e5a0 completado con series "Ok"; bf0d7bfd aún en curso) y agregar la serie de calves 40 kg. Al instalar la versión nueva, el catch-up backfillea `gym_sets`/`hub_workouts` solo; las correcciones se hacen desde la UI y después conviene extraer la base (build debug) y correr la prueba ácida real
 - [ ] Semántica del descanso: hoy es `restBeforeSeconds` (descanso ANTES de la serie); revisar qué pasa con la primera y la última serie del entreno y dejarlo explícito en la UI
 - [ ] Detalle de un entreno pasado: tocar un workout en Historial y ver sus series
 - [ ] Estadísticas de progresión: PRs, volumen por grupo muscular, tendencia por ejercicio
