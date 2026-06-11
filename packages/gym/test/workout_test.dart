@@ -76,6 +76,81 @@ void main() {
     });
   });
 
+  group('discard (compensatorio, ADR-0010)', () {
+    test('en curso emite WorkoutDiscarded con wasCompleted=false', () {
+      final workout = conSerie()..discard();
+      final discarded = workout.uncommittedEvents.last as WorkoutDiscarded;
+      expect(discarded.wasCompleted, isFalse);
+      expect(workout.isDiscarded, isTrue);
+    });
+
+    test('completado emite WorkoutDiscarded con wasCompleted=true', () {
+      final workout = conSerie()
+        ..complete()
+        ..discard();
+      final discarded = workout.uncommittedEvents.last as WorkoutDiscarded;
+      expect(discarded.wasCompleted, isTrue);
+    });
+
+    test('rechaza no iniciado y doble descarte', () {
+      expect(() => Workout('w2').discard(), throwsA(isA<DomainException>()));
+      expect(() => (conSerie()..discard()).discard(),
+          throwsA(isA<DomainException>()));
+    });
+
+    test('es terminal: nada se le puede hacer a un workout descartado', () {
+      final descartado = conSerie()..discard();
+      final completadoYDescartado = conSerie()
+        ..complete()
+        ..discard();
+      final casos = <void Function()>[
+        () => descartado.logSet(exercise: 'x', weightKg: 1, reps: 1),
+        () => descartado.complete(),
+        () => completadoYDescartado.addMissedSet(
+            exercise: 'x', weightKg: 1, reps: 1),
+      ];
+      for (final caso in casos) {
+        expect(caso, throwsA(isA<DomainException>()));
+      }
+    });
+  });
+
+  group('addMissedSet (compensatorio, ADR-0010)', () {
+    test('sobre un completado emite SetLoggedLate normalizado y cuenta', () {
+      final workout = conSerie()
+        ..complete()
+        ..addMissedSet(
+            exercise: ' calf raises ',
+            weightKg: 40,
+            reps: 12,
+            restBeforeSeconds: 15);
+
+      final tardia = workout.uncommittedEvents.last as SetLoggedLate;
+      expect(tardia.exercise, 'calf raises');
+      expect(tardia.weightKg, 40);
+      expect(tardia.reps, 12);
+      expect(tardia.restBeforeSeconds, 15);
+      expect(workout.setCount, 2);
+    });
+
+    test('rechaza en curso (se usa logSet), no iniciado y series inválidas',
+        () {
+      final completado = conSerie()..complete();
+      final casos = <void Function()>[
+        () => conSerie().addMissedSet(exercise: 'x', weightKg: 1, reps: 1),
+        () => Workout('w2').addMissedSet(exercise: 'x', weightKg: 1, reps: 1),
+        () => completado.addMissedSet(exercise: '  ', weightKg: 1, reps: 1),
+        () => completado.addMissedSet(exercise: 'x', weightKg: -1, reps: 1),
+        () => completado.addMissedSet(exercise: 'x', weightKg: 1, reps: 0),
+        () => completado.addMissedSet(
+            exercise: 'x', weightKg: 1, reps: 1, restBeforeSeconds: -5),
+      ];
+      for (final caso in casos) {
+        expect(caso, throwsA(isA<DomainException>()));
+      }
+    });
+  });
+
   test('rehydrate reconstruye el estado y permite seguir operando', () {
     final original = conSerie();
     final history = [

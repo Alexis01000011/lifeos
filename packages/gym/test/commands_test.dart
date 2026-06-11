@@ -8,6 +8,8 @@ void main() {
   late StartWorkoutHandler startHandler;
   late LogSetHandler logSetHandler;
   late CompleteWorkoutHandler completeHandler;
+  late DiscardWorkoutHandler discardHandler;
+  late AddMissedSetHandler addMissedSetHandler;
 
   setUp(() {
     store = InMemoryEventStore();
@@ -15,6 +17,8 @@ void main() {
     startHandler = StartWorkoutHandler(workouts);
     logSetHandler = LogSetHandler(workouts);
     completeHandler = CompleteWorkoutHandler(workouts);
+    discardHandler = DiscardWorkoutHandler(workouts);
+    addMissedSetHandler = AddMissedSetHandler(workouts);
   });
 
   test('flujo completo: start → 2 series → complete, todo persistido en '
@@ -54,6 +58,45 @@ void main() {
     );
     await expectLater(completeHandler.handle(CompleteWorkout('nadie')),
         throwsA(isA<DomainException>()));
+  });
+
+  test('flujo compensatorio: descartar un fantasma y reponer una serie '
+      'olvidada (ADR-0010)', () async {
+    // El fantasma en curso (caso bf0d7bfd): empezado por error, se descarta.
+    await startHandler.handle(StartWorkout('fantasma'));
+    await discardHandler.handle(DiscardWorkout('fantasma'));
+
+    // El entreno real completado al que le faltó la serie de calves.
+    await startHandler.handle(StartWorkout('real'));
+    await logSetHandler.handle(LogSet(
+        workoutId: 'real', exercise: 'calf raises', weightKg: 70, reps: 10));
+    await completeHandler.handle(CompleteWorkout('real'));
+    await addMissedSetHandler.handle(AddMissedSet(
+        workoutId: 'real',
+        exercise: 'calf raises',
+        weightKg: 40,
+        reps: 12,
+        restBeforeSeconds: 15));
+
+    expect(store.log.map((e) => e.event.eventType), [
+      'gym.workout_started',
+      'gym.workout_discarded',
+      'gym.workout_started',
+      'gym.set_logged',
+      'gym.workout_completed',
+      'gym.set_logged_late',
+    ]);
+  });
+
+  test('DiscardWorkout y AddMissedSet sobre un workout inexistente son '
+      'rechazados', () async {
+    await expectLater(discardHandler.handle(DiscardWorkout('nadie')),
+        throwsA(isA<DomainException>()));
+    await expectLater(
+      addMissedSetHandler.handle(AddMissedSet(
+          workoutId: 'nadie', exercise: 'x', weightKg: 1, reps: 1)),
+      throwsA(isA<DomainException>()),
+    );
   });
 
   test('un comando rechazado por el agregado no persiste nada', () async {

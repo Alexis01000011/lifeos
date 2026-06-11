@@ -23,8 +23,13 @@ class WorkoutHistoryProjector implements Projector {
   String get name => 'gym.workout_history';
 
   @override
-  Set<String> get handledEventTypes =>
-      {WorkoutStarted.type, SetLogged.type, WorkoutCompleted.type};
+  Set<String> get handledEventTypes => {
+        WorkoutStarted.type,
+        SetLogged.type,
+        WorkoutCompleted.type,
+        WorkoutDiscarded.type,
+        SetLoggedLate.type,
+      };
 
   @override
   FutureOr<void> project(EventEnvelope envelope) async {
@@ -37,6 +42,7 @@ class WorkoutHistoryProjector implements Projector {
           [workoutId, envelope.occurredAt.microsecondsSinceEpoch],
         );
       case SetLogged(:final weightKg, :final reps):
+      case SetLoggedLate(:final weightKg, :final reps):
         await _db.customStatement(
           'UPDATE $workoutHistoryTable '
           'SET set_count = set_count + 1, '
@@ -50,6 +56,12 @@ class WorkoutHistoryProjector implements Projector {
           'WHERE workout_id = ?',
           [envelope.occurredAt.microsecondsSinceEpoch, workoutId],
         );
+      case WorkoutDiscarded():
+        // El read model lo olvida; el event store lo recuerda (ADR-0010).
+        await _db.customStatement(
+          'DELETE FROM $workoutHistoryTable WHERE workout_id = ?',
+          [workoutId],
+        );
     }
     _db.notifyUpdates({TableUpdate(workoutHistoryTable)});
   }
@@ -61,35 +73,68 @@ class WorkoutHistoryProjector implements Projector {
   }
 }
 
-/// La estadística derivada del esqueleto: volumen (kg×reps) acumulado por
-/// semana ISO. Mismo contrato de idempotencia que el historial.
-class WeeklyVolumeProjector implements Projector {
+/// Una fila por serie (ADR-0010): reemplaza al acumulador semanal — el
+/// volumen por semana ahora es GROUP BY en la consulta. El nombre es nuevo
+/// a propósito: nace con checkpoint 0 y el catch-up del arranque lo
+/// backfillea con los eventos ya persistidos.
+class WorkoutSetsProjector implements Projector {
   final GeneratedDatabase _db;
 
-  WeeklyVolumeProjector(this._db);
+  WorkoutSetsProjector(this._db);
 
   @override
-  String get name => 'gym.weekly_volume';
+  String get name => 'gym.workout_sets';
 
   @override
-  Set<String> get handledEventTypes => {SetLogged.type};
+  Set<String> get handledEventTypes =>
+      {SetLogged.type, SetLoggedLate.type, WorkoutDiscarded.type};
 
   @override
   FutureOr<void> project(EventEnvelope envelope) async {
-    final set = envelope.event as SetLogged;
-    await _db.customStatement(
-      'INSERT INTO $weeklyVolumeTable (week_start, total_volume_kg) '
-      'VALUES (?, ?) '
-      'ON CONFLICT (week_start) '
-      'DO UPDATE SET total_volume_kg = total_volume_kg + excluded.total_volume_kg',
-      [isoWeekStartUtc(envelope.occurredAt), set.weightKg * set.reps],
-    );
-    _db.notifyUpdates({TableUpdate(weeklyVolumeTable)});
+    final workoutId = envelope.streamId.aggregateId;
+    switch (envelope.event) {
+      case SetLogged(:final exercise, :final weightKg, :final reps, :final restBeforeSeconds):
+        await _db.customStatement(
+          'INSERT INTO $gymSetsTable (workout_id, position, exercise, '
+          'weight_kg, reps, rest_before_seconds, week_start, is_late) '
+          'VALUES (?, (SELECT COUNT(*) + 1 FROM $gymSetsTable WHERE workout_id = ?), '
+          '?, ?, ?, ?, ?, 0)',
+          [
+            workoutId,
+            workoutId,
+            exercise,
+            weightKg,
+            reps,
+            restBeforeSeconds,
+            isoWeekStartUtc(envelope.occurredAt),
+          ],
+        );
+      case SetLoggedLate(:final exercise, :final weightKg, :final reps, :final restBeforeSeconds):
+        // La semana es la del WORKOUT, no la de la corrección: se hereda de
+        // la primera serie, que siempre existe (no se completa sin series,
+        // y la serie tardía solo vale sobre completados). Si la invariante
+        // se rompiera, el NOT NULL de week_start aborta la transacción.
+        await _db.customStatement(
+          'INSERT INTO $gymSetsTable (workout_id, position, exercise, '
+          'weight_kg, reps, rest_before_seconds, week_start, is_late) '
+          'VALUES (?, (SELECT COUNT(*) + 1 FROM $gymSetsTable WHERE workout_id = ?), '
+          '?, ?, ?, ?, '
+          '(SELECT week_start FROM $gymSetsTable WHERE workout_id = ? '
+          ' ORDER BY position LIMIT 1), 1)',
+          [workoutId, workoutId, exercise, weightKg, reps, restBeforeSeconds, workoutId],
+        );
+      case WorkoutDiscarded():
+        await _db.customStatement(
+          'DELETE FROM $gymSetsTable WHERE workout_id = ?',
+          [workoutId],
+        );
+    }
+    _db.notifyUpdates({TableUpdate(gymSetsTable)});
   }
 
   @override
   Future<void> reset() async {
-    await _db.customStatement('DELETE FROM $weeklyVolumeTable');
-    _db.notifyUpdates({TableUpdate(weeklyVolumeTable)});
+    await _db.customStatement('DELETE FROM $gymSetsTable');
+    _db.notifyUpdates({TableUpdate(gymSetsTable)});
   }
 }

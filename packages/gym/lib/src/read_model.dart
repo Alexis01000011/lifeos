@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 /// sobre la database compuesta. Nadie fuera de gym lee estas tablas.
 
 const workoutHistoryTable = 'gym_workout_history';
-const weeklyVolumeTable = 'gym_weekly_volume';
+const gymSetsTable = 'gym_sets';
 
 /// Idempotente; la app shell lo llama en su arranque, junto con
 /// createEventStoreSchema. Las tablas son desechables por contrato:
@@ -19,12 +19,26 @@ Future<void> createGymReadModelSchema(GeneratedDatabase db) async {
       total_volume_kg REAL    NOT NULL DEFAULT 0
     )
   ''');
+  // Granular (ADR-0010): una fila por serie; el volumen semanal es un
+  // GROUP BY en la consulta. Así el descarte es un DELETE y no hay
+  // acumulador que no sepa restar. Es además la base del detalle de
+  // entreno y las estadísticas de progresión del Hito 2.
   await db.customStatement('''
-    CREATE TABLE IF NOT EXISTS $weeklyVolumeTable (
-      week_start      TEXT NOT NULL PRIMARY KEY,
-      total_volume_kg REAL NOT NULL DEFAULT 0
+    CREATE TABLE IF NOT EXISTS $gymSetsTable (
+      workout_id          TEXT    NOT NULL,
+      position            INTEGER NOT NULL,
+      exercise            TEXT    NOT NULL,
+      weight_kg           REAL    NOT NULL,
+      reps                INTEGER NOT NULL,
+      rest_before_seconds INTEGER,
+      week_start          TEXT    NOT NULL,
+      is_late             INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (workout_id, position)
     )
   ''');
+  // Acumulador reemplazado por gym_sets (ADR-0010). Las tablas de lectura
+  // son desechables por contrato, así que el viejo se elimina sin migrar.
+  await db.customStatement('DROP TABLE IF EXISTS gym_weekly_volume');
 }
 
 /// Resumen de un workout para la pantalla de historial.
@@ -88,7 +102,8 @@ class GymReadModels {
   Future<List<WeeklyVolume>> weeklyVolume() async {
     final rows = await _db
         .customSelect(
-            'SELECT * FROM $weeklyVolumeTable ORDER BY week_start DESC')
+            'SELECT week_start, SUM(weight_kg * reps) AS total_volume_kg '
+            'FROM $gymSetsTable GROUP BY week_start ORDER BY week_start DESC')
         .get();
     return [
       for (final row in rows)

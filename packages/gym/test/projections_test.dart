@@ -16,6 +16,8 @@ void main() {
   late StartWorkoutHandler start;
   late LogSetHandler logSet;
   late CompleteWorkoutHandler complete;
+  late DiscardWorkoutHandler discard;
+  late AddMissedSetHandler addMissed;
 
   /// Reloj controlado: los tests lo mueven para cruzar semanas.
   late DateTime now;
@@ -29,7 +31,7 @@ void main() {
     final registry = DefaultEventTypeRegistry<DomainEvent>();
     registerGymEvents(registry);
     engine = ProjectionEngine(
-      [WorkoutHistoryProjector(db), WeeklyVolumeProjector(db)],
+      [WorkoutHistoryProjector(db), WorkoutSetsProjector(db)],
       DriftProjectionCheckpointStore(db),
     );
     store = DriftEventStore(db, registry, engine, clock: () => now);
@@ -39,6 +41,8 @@ void main() {
     start = StartWorkoutHandler(workouts);
     logSet = LogSetHandler(workouts);
     complete = CompleteWorkoutHandler(workouts);
+    discard = DiscardWorkoutHandler(workouts);
+    addMissed = AddMissedSetHandler(workouts);
   });
 
   tearDown(() => db.close());
@@ -105,6 +109,52 @@ void main() {
     expect(isoWeekStartUtc(DateTime.utc(2026, 6, 15)), '2026-06-15');
   });
 
+  test('descartar borra el workout del historial y su volumen de la semana '
+      '(ADR-0010)', () async {
+    await entrenoDePierna('real');
+
+    // El fantasma completado (caso db99e5a0): series basura para poder salir.
+    await start.handle(StartWorkout('fantasma'));
+    await logSet.handle(
+        LogSet(workoutId: 'fantasma', exercise: 'Ok', weightKg: 0, reps: 1));
+    await complete.handle(CompleteWorkout('fantasma'));
+
+    // El fantasma en curso (caso bf0d7bfd): un tap curioso en "Empezar".
+    await start.handle(StartWorkout('tap-curioso'));
+
+    expect(await readModels.workoutHistory(), hasLength(3));
+
+    await discard.handle(DiscardWorkout('fantasma'));
+    await discard.handle(DiscardWorkout('tap-curioso'));
+
+    final historia = await readModels.workoutHistory();
+    expect(historia.single.workoutId, 'real');
+    final semanas = await readModels.weeklyVolume();
+    expect(semanas.single.totalVolumeKg, 80.0 * 10 + 80 * 8 + 160 * 15,
+        reason: 'el volumen del fantasma no deja rastro');
+  });
+
+  test('la serie tardía suma al historial y a la semana DEL WORKOUT aunque '
+      'la corrección llegue otra semana (ADR-0010)', () async {
+    await entrenoDePierna('w1'); // semana del 2026-06-08
+
+    now = DateTime.utc(2026, 6, 16, 9); // martes de la semana siguiente
+    await addMissed.handle(AddMissedSet(
+        workoutId: 'w1',
+        exercise: 'calf raises',
+        weightKg: 40,
+        reps: 12,
+        restBeforeSeconds: 15));
+
+    final resumen = (await readModels.workoutHistory()).single;
+    expect(resumen.setCount, 4);
+    expect(resumen.totalVolumeKg, 80.0 * 10 + 80 * 8 + 160 * 15 + 40 * 12);
+
+    final semanas = await readModels.weeklyVolume();
+    expect(semanas.single.weekStart, '2026-06-08',
+        reason: 'la serie pertenece al entreno, no al día de la corrección');
+  });
+
   test('PRUEBA ÁCIDA: reset de proyecciones + replay = estado idéntico',
       () async {
     await entrenoDePierna('w1');
@@ -113,21 +163,26 @@ void main() {
     await start.handle(StartWorkout('w3')); // uno en curso, sin completar
     await logSet.handle(LogSet(
         workoutId: 'w3', exercise: 'press militar', weightKg: 40, reps: 8));
+    // Historia compensatoria incluida: el replay también la reproduce.
+    await discard.handle(DiscardWorkout('w2'));
+    now = DateTime.utc(2026, 6, 16, 9);
+    await addMissed.handle(AddMissedSet(
+        workoutId: 'w1', exercise: 'calf raises', weightKg: 40, reps: 12));
 
     Future<List<Map<String, Object?>>> snapshot(String table) async {
       final rows =
-          await db.customSelect('SELECT * FROM $table ORDER BY 1').get();
+          await db.customSelect('SELECT * FROM $table ORDER BY 1, 2').get();
       return rows.map((r) => r.data).toList();
     }
 
     final historiaAntes = await snapshot(workoutHistoryTable);
-    final volumenAntes = await snapshot(weeklyVolumeTable);
+    final seriesAntes = await snapshot(gymSetsTable);
     expect(historiaAntes, isNotEmpty);
-    expect(volumenAntes, isNotEmpty);
+    expect(seriesAntes, isNotEmpty);
 
     await engine.rebuild(store.readAll());
 
     expect(await snapshot(workoutHistoryTable), historiaAntes);
-    expect(await snapshot(weeklyVolumeTable), volumenAntes);
+    expect(await snapshot(gymSetsTable), seriesAntes);
   });
 }

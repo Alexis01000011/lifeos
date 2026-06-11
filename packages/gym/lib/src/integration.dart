@@ -83,3 +83,73 @@ class PublishWorkoutCompletedPolicy implements Projector {
     // No-op deliberado: el log de integración no es una proyección.
   }
 }
+
+/// `gym.workout_discarded` v1 — compensatorio de la API pública (ADR-0010):
+/// anula al `gym.workout_completed` del mismo workout. Lo publicado no se
+/// despublica; se publica la corrección.
+class WorkoutDiscardedIntegrationEvent implements IntegrationEvent {
+  static const type = 'gym.workout_discarded';
+
+  final String workoutId;
+  final DateTime discardedAt;
+
+  WorkoutDiscardedIntegrationEvent({
+    required this.workoutId,
+    required this.discardedAt,
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'workout_id': workoutId,
+        'discarded_at': discardedAt.toUtc().toIso8601String(),
+      };
+
+  static WorkoutDiscardedIntegrationEvent fromJson(
+          Map<String, dynamic> json) =>
+      WorkoutDiscardedIntegrationEvent(
+        workoutId: json['workout_id'] as String,
+        discardedAt: DateTime.parse(json['discarded_at'] as String),
+      );
+}
+
+/// Policy compensatoria: solo publica si el workout estaba COMPLETADO al
+/// descartarse — un descarte en curso nunca fue anunciado, no hay nada que
+/// compensar hacia afuera. El contrato queda mínimo (id + cuándo): cada
+/// consumidor guarda el estado que necesite para revertir lo suyo.
+class PublishWorkoutDiscardedPolicy implements Projector {
+  final IntegrationEventLog _log;
+
+  PublishWorkoutDiscardedPolicy(this._log);
+
+  @override
+  String get name => 'gym.policy.workout_discarded';
+
+  @override
+  Set<String> get handledEventTypes => {WorkoutDiscarded.type};
+
+  @override
+  FutureOr<void> project(EventEnvelope envelope) {
+    final discarded = envelope.event as WorkoutDiscarded;
+    if (!discarded.wasCompleted) return null;
+    return _log.publish(
+      WorkoutDiscardedIntegrationEvent(
+        workoutId: envelope.streamId.aggregateId,
+        discardedAt: envelope.occurredAt,
+      ),
+      causationEventId: envelope.eventId,
+      sourceModule: 'gym',
+      occurredAt: envelope.occurredAt,
+    );
+  }
+
+  @override
+  Future<void> reset() async {
+    // No-op deliberado: el log de integración no es una proyección.
+  }
+}

@@ -40,9 +40,40 @@ void main() {
     expect(roundtrip(WorkoutCompleted()), isA<WorkoutCompleted>());
   });
 
+  test('WorkoutDiscarded sobrevive el roundtrip y defaultea wasCompleted '
+      'a false (weak schema)', () {
+    final leido =
+        roundtrip(WorkoutDiscarded(wasCompleted: true)) as WorkoutDiscarded;
+    expect(leido.wasCompleted, isTrue);
+
+    final sinCampo = registry.deserialize(WorkoutDiscarded.type, 1, const {})
+        as WorkoutDiscarded;
+    expect(sinCampo.wasCompleted, isFalse);
+  });
+
+  test('SetLoggedLate sobrevive el roundtrip (con y sin descanso)', () {
+    final leido = roundtrip(SetLoggedLate(
+      exercise: 'calf raises',
+      weightKg: 40,
+      reps: 12,
+      restBeforeSeconds: 15,
+    )) as SetLoggedLate;
+    expect(leido.exercise, 'calf raises');
+    expect(leido.weightKg, 40);
+    expect(leido.reps, 12);
+    expect(leido.restBeforeSeconds, 15);
+
+    final sinDescanso = roundtrip(
+            SetLoggedLate(exercise: 'calf raises', weightKg: 40, reps: 12))
+        as SetLoggedLate;
+    expect(sinDescanso.restBeforeSeconds, isNull);
+  });
+
   test('los eventType son estables (contrato de persistencia)', () {
     expect(WorkoutStarted.type, 'gym.workout_started');
     expect(SetLogged.type, 'gym.set_logged');
     expect(WorkoutCompleted.type, 'gym.workout_completed');
+    expect(WorkoutDiscarded.type, 'gym.workout_discarded');
+    expect(SetLoggedLate.type, 'gym.set_logged_late');
   });
 }

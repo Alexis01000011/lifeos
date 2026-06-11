@@ -32,6 +32,27 @@ class CompleteWorkout implements Command {
   CompleteWorkout(this.workoutId);
 }
 
+class DiscardWorkout implements Command {
+  final String workoutId;
+  DiscardWorkout(this.workoutId);
+}
+
+class AddMissedSet implements Command {
+  final String workoutId;
+  final String exercise;
+  final double weightKg;
+  final int reps;
+  final int? restBeforeSeconds;
+
+  AddMissedSet({
+    required this.workoutId,
+    required this.exercise,
+    required this.weightKg,
+    required this.reps,
+    this.restBeforeSeconds,
+  });
+}
+
 class StartWorkoutHandler implements CommandHandler<StartWorkout> {
   final AggregateRepository<Workout> _workouts;
   StartWorkoutHandler(this._workouts);
@@ -72,6 +93,35 @@ class CompleteWorkoutHandler implements CommandHandler<CompleteWorkout> {
   Future<void> handle(CompleteWorkout command) async {
     final workout = await _load(_workouts, command.workoutId);
     workout.complete();
+    await _workouts.save(workout);
+  }
+}
+
+class DiscardWorkoutHandler implements CommandHandler<DiscardWorkout> {
+  final AggregateRepository<Workout> _workouts;
+  DiscardWorkoutHandler(this._workouts);
+
+  @override
+  Future<void> handle(DiscardWorkout command) async {
+    final workout = await _load(_workouts, command.workoutId);
+    workout.discard();
+    await _workouts.save(workout);
+  }
+}
+
+class AddMissedSetHandler implements CommandHandler<AddMissedSet> {
+  final AggregateRepository<Workout> _workouts;
+  AddMissedSetHandler(this._workouts);
+
+  @override
+  Future<void> handle(AddMissedSet command) async {
+    final workout = await _load(_workouts, command.workoutId);
+    workout.addMissedSet(
+      exercise: command.exercise,
+      weightKg: command.weightKg,
+      reps: command.reps,
+      restBeforeSeconds: command.restBeforeSeconds,
+    );
     await _workouts.save(workout);
   }
 }

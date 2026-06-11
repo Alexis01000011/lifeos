@@ -16,6 +16,7 @@ void main() {
   late StartWorkoutHandler start;
   late LogSetHandler logSet;
   late CompleteWorkoutHandler complete;
+  late DiscardWorkoutHandler discard;
 
   final completedAt = DateTime.utc(2026, 6, 10, 18);
 
@@ -29,14 +30,20 @@ void main() {
     registerGymEvents(registry);
     final integrationRegistry = DefaultEventTypeRegistry<IntegrationEvent>()
       ..register(WorkoutCompletedIntegrationEvent.type, 1,
-          WorkoutCompletedIntegrationEvent.fromJson);
+          WorkoutCompletedIntegrationEvent.fromJson)
+      ..register(WorkoutDiscardedIntegrationEvent.type, 1,
+          WorkoutDiscardedIntegrationEvent.fromJson);
     log = DriftIntegrationEventLog(
       db,
       integrationRegistry,
       IntegrationProjectionEngine(const [], DriftProjectionCheckpointStore(db)),
     );
     engine = ProjectionEngine(
-      [WorkoutHistoryProjector(db), PublishWorkoutCompletedPolicy(log)],
+      [
+        WorkoutHistoryProjector(db),
+        PublishWorkoutCompletedPolicy(log),
+        PublishWorkoutDiscardedPolicy(log),
+      ],
       DriftProjectionCheckpointStore(db),
     );
     store = DriftEventStore(db, registry, engine, clock: () => completedAt);
@@ -45,6 +52,7 @@ void main() {
     start = StartWorkoutHandler(workouts);
     logSet = LogSetHandler(workouts);
     complete = CompleteWorkoutHandler(workouts);
+    discard = DiscardWorkoutHandler(workouts);
   });
 
   tearDown(() => db.close());
@@ -79,6 +87,31 @@ void main() {
     await start.handle(StartWorkout('w1'));
     await logSet.handle(
         LogSet(workoutId: 'w1', exercise: 'press banca', weightKg: 60, reps: 8));
+
+    expect(await log.readAll().toList(), isEmpty);
+  });
+
+  test('descartar un workout COMPLETADO publica el compensatorio v1 '
+      '(ADR-0010)', () async {
+    await entrenoCompleto('w1');
+    await discard.handle(DiscardWorkout('w1'));
+
+    final publicados = await log.readAll().toList();
+    expect([for (final e in publicados) e.event.eventType],
+        ['gym.workout_completed', 'gym.workout_discarded']);
+
+    final evento = publicados.last.event as WorkoutDiscardedIntegrationEvent;
+    expect(evento.workoutId, 'w1');
+    expect(evento.toJson(), {
+      'workout_id': 'w1',
+      'discarded_at': '2026-06-10T18:00:00.000Z',
+    });
+  });
+
+  test('descartar un workout EN CURSO no publica nada: nunca fue anunciado',
+      () async {
+    await start.handle(StartWorkout('w1'));
+    await discard.handle(DiscardWorkout('w1'));
 
     expect(await log.readAll().toList(), isEmpty);
   });
