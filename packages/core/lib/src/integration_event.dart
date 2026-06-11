@@ -118,13 +118,20 @@ class IntegrationProjectionEngine {
     }
   }
 
+  /// Catch-up sin reset (espejo del de ProjectionEngine, ADR-0010): la
+  /// guarda de checkpoint salta lo ya procesado; un projector nuevo se
+  /// backfillea desde el log completo.
+  Future<void> catchUp(Stream<IntegrationEventEnvelope> events) async {
+    await for (final envelope in events) {
+      await project(envelope);
+    }
+  }
+
   Future<void> rebuild(Stream<IntegrationEventEnvelope> events) async {
     for (final projector in _projectors) {
       await projector.reset();
       await _checkpoints.saveCheckpoint(projector.name, 0);
     }
-    await for (final envelope in events) {
-      await project(envelope);
-    }
+    await catchUp(events);
   }
 }

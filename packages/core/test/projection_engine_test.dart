@@ -52,6 +52,28 @@ void main() {
     expect(gymHistory.projected, ['evt-1', 'evt-2']);
   });
 
+  test(
+      'catchUp backfillea a un projector nuevo sin duplicar en los que '
+      'ya estaban al día (ADR-0010)', () async {
+    final history = [
+      envelope(TestEvent('gym.workout_logged', 'a'), globalSequence: 1),
+      envelope(TestEvent('gym.workout_logged', 'b'),
+          globalSequence: 2, streamVersion: 2),
+    ];
+    await engine.projectAll(history);
+
+    // Llega un projector nuevo (checkpoint 0) al mismo engine.
+    final recienLlegado = RecordingProjector('gym.sets', {'gym.workout_logged'});
+    final engine2 =
+        ProjectionEngine([gymHistory, recienLlegado], checkpoints);
+
+    await engine2.catchUp(Stream.fromIterable(history));
+
+    expect(recienLlegado.projected, ['evt-1', 'evt-2']);
+    expect(gymHistory.projected, ['evt-1', 'evt-2'],
+        reason: 'el veterano no reprocesa: su checkpoint lo protege');
+  });
+
   test('rebuild = reset + replay deja el mismo estado (prueba ácida)',
       () async {
     final history = [

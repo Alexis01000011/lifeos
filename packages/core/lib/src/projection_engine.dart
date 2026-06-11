@@ -45,6 +45,17 @@ class ProjectionEngine {
     }
   }
 
+  /// Catch-up sin reset: despacha el historial confiando en la guarda de
+  /// checkpoint (lo ya procesado se salta). Es como un projector nuevo o
+  /// renombrado —checkpoint 0— se backfillea con los eventos que se
+  /// persistieron antes de que existiera; la app lo corre al arrancar
+  /// (ADR-0010).
+  Future<void> catchUp(Stream<EventEnvelope> events) async {
+    await for (final envelope in events) {
+      await project(envelope);
+    }
+  }
+
   /// Prueba ácida: borra todos los modelos de lectura y los reconstruye
   /// desde el historial completo ([events] viene de EventStore.readAll()).
   /// Tras esto, el estado debe ser idéntico al previo — por eso ejercita
@@ -54,8 +65,6 @@ class ProjectionEngine {
       await projector.reset();
       await _checkpoints.saveCheckpoint(projector.name, 0);
     }
-    await for (final envelope in events) {
-      await project(envelope);
-    }
+    await catchUp(events);
   }
 }
