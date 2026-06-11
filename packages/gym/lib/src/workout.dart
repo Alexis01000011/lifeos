@@ -32,8 +32,12 @@ class Workout extends AggregateRoot {
     raise(WorkoutStarted());
   }
 
+  /// [exerciseId] referencia al catálogo (ADR-0011). A propósito NO se
+  /// valida su existencia: sería una invariante entre agregados. La UI
+  /// selecciona del catálogo, así que llega válido por construcción.
   void logSet({
     required String exercise,
+    String? exerciseId,
     required double weightKg,
     required int reps,
     int? restBeforeSeconds,
@@ -47,6 +51,7 @@ class Workout extends AggregateRoot {
     _validateSet(exercise, weightKg, reps, restBeforeSeconds);
     raise(SetLogged(
       exercise: exercise.trim(),
+      exerciseId: exerciseId,
       weightKg: weightKg,
       reps: reps,
       restBeforeSeconds: restBeforeSeconds,
@@ -82,6 +87,7 @@ class Workout extends AggregateRoot {
   /// "no series tras completar" del camino normal.
   void addMissedSet({
     required String exercise,
+    String? exerciseId,
     required double weightKg,
     required int reps,
     int? restBeforeSeconds,
@@ -95,6 +101,7 @@ class Workout extends AggregateRoot {
     _validateSet(exercise, weightKg, reps, restBeforeSeconds);
     raise(SetLoggedLate(
       exercise: exercise.trim(),
+      exerciseId: exerciseId,
       weightKg: weightKg,
       reps: reps,
       restBeforeSeconds: restBeforeSeconds,

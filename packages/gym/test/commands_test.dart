@@ -107,4 +107,95 @@ void main() {
 
     expect(store.log, hasLength(1), reason: 'solo el WorkoutStarted');
   });
+
+  group('catálogo (ADR-0011)', () {
+    late AddExerciseHandler addExerciseHandler;
+    late RenameExerciseHandler renameExerciseHandler;
+
+    setUp(() {
+      final catalogs = exerciseCatalogRepository(store);
+      addExerciseHandler = AddExerciseHandler(catalogs);
+      renameExerciseHandler = RenameExerciseHandler(catalogs);
+    });
+
+    test('el primer alta crea el singleton; las siguientes lo cargan '
+        '(load-or-create)', () async {
+      await addExerciseHandler.handle(AddExercise(
+          exerciseId: 'e1',
+          name: 'Leg press',
+          muscleGroup: MuscleGroup.pierna));
+      await addExerciseHandler.handle(AddExercise(
+          exerciseId: 'e2',
+          name: 'Calf raises',
+          muscleGroup: MuscleGroup.pierna,
+          legacyNames: ['Calves']));
+      await renameExerciseHandler.handle(RenameExercise(
+          exerciseId: 'e2', newName: 'Standing calf raise'));
+
+      expect(store.log.map((e) => e.event.eventType), [
+        'gym.exercise_added',
+        'gym.exercise_added',
+        'gym.exercise_renamed',
+      ]);
+      expect(store.log.map((e) => e.streamVersion), [1, 2, 3],
+          reason: 'un solo stream: el catálogo es singleton');
+      expect(
+          store.log.map((e) => e.streamId.aggregateId).toSet(),
+          {ExerciseCatalog.singletonId});
+    });
+
+    test('la invariante de unicidad sobrevive entre comandos (rehidratación '
+        'desde eventos, no memoria compartida)', () async {
+      await addExerciseHandler.handle(AddExercise(
+          exerciseId: 'e1',
+          name: 'Leg press',
+          muscleGroup: MuscleGroup.pierna));
+
+      await expectLater(
+        addExerciseHandler.handle(AddExercise(
+            exerciseId: 'e2',
+            name: 'LEG PRESS',
+            muscleGroup: MuscleGroup.pierna)),
+        throwsA(isA<DomainException>()),
+      );
+      expect(store.log, hasLength(1));
+    });
+
+    test('renombrar sobre catálogo vacío o ejercicio inexistente es '
+        'rechazado', () async {
+      await expectLater(
+        renameExerciseHandler
+            .handle(RenameExercise(exerciseId: 'e1', newName: 'X')),
+        throwsA(isA<DomainException>()),
+      );
+
+      await addExerciseHandler.handle(AddExercise(
+          exerciseId: 'e1',
+          name: 'Leg press',
+          muscleGroup: MuscleGroup.pierna));
+      await expectLater(
+        renameExerciseHandler
+            .handle(RenameExercise(exerciseId: 'nadie', newName: 'X')),
+        throwsA(isA<DomainException>()),
+      );
+    });
+
+    test('LogSet lleva el exerciseId hasta el evento persistido', () async {
+      await addExerciseHandler.handle(AddExercise(
+          exerciseId: 'e1',
+          name: 'Leg press',
+          muscleGroup: MuscleGroup.pierna));
+      await startHandler.handle(StartWorkout('w1'));
+      await logSetHandler.handle(LogSet(
+          workoutId: 'w1',
+          exercise: 'Leg press',
+          exerciseId: 'e1',
+          weightKg: 180,
+          reps: 10));
+
+      final serie = store.log.last.event as SetLogged;
+      expect(serie.exerciseId, 'e1');
+      expect(serie.exercise, 'Leg press');
+    });
+  });
 }

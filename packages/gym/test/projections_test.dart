@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:core_drift/core_drift.dart';
 import 'package:core_drift/testing.dart';
+import 'package:drift/drift.dart' show Variable;
 import 'package:gym/gym.dart';
 import 'package:test/test.dart';
 
@@ -18,6 +19,8 @@ void main() {
   late CompleteWorkoutHandler complete;
   late DiscardWorkoutHandler discard;
   late AddMissedSetHandler addMissed;
+  late AddExerciseHandler addExercise;
+  late RenameExerciseHandler renameExercise;
 
   /// Reloj controlado: los tests lo mueven para cruzar semanas.
   late DateTime now;
@@ -31,7 +34,11 @@ void main() {
     final registry = DefaultEventTypeRegistry<DomainEvent>();
     registerGymEvents(registry);
     engine = ProjectionEngine(
-      [WorkoutHistoryProjector(db), WorkoutSetsProjector(db)],
+      [
+        WorkoutHistoryProjector(db),
+        WorkoutSetsProjector(db),
+        ExerciseCatalogProjector(db),
+      ],
       DriftProjectionCheckpointStore(db),
     );
     store = DriftEventStore(db, registry, engine, clock: () => now);
@@ -43,6 +50,9 @@ void main() {
     complete = CompleteWorkoutHandler(workouts);
     discard = DiscardWorkoutHandler(workouts);
     addMissed = AddMissedSetHandler(workouts);
+    final catalogs = exerciseCatalogRepository(store);
+    addExercise = AddExerciseHandler(catalogs);
+    renameExercise = RenameExerciseHandler(catalogs);
   });
 
   tearDown(() => db.close());
@@ -155,6 +165,58 @@ void main() {
         reason: 'la serie pertenece al entreno, no al día de la corrección');
   });
 
+  test('el catálogo proyecta ejercicios y su mapa de nombres, ordenado por '
+      'grupo muscular (ADR-0011)', () async {
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e-press',
+        name: 'Press plano (barra)',
+        muscleGroup: MuscleGroup.pecho));
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e-calves',
+        name: 'Calf raises',
+        muscleGroup: MuscleGroup.pierna,
+        legacyNames: ['Calves']));
+
+    final ejercicios = await readModels.exercises();
+    expect(ejercicios.map((e) => e.exerciseId), ['e-press', 'e-calves'],
+        reason: 'pecho antes que pierna: orden del enum, no alfabético');
+    expect(ejercicios.first.muscleGroup, 'pecho');
+
+    // El mapa resuelve nombre actual y legacy, normalizados.
+    Future<String?> resolver(String nombre) async {
+      final rows = await db.customSelect(
+          'SELECT exercise_id FROM $gymExerciseNamesTable '
+          'WHERE name_normalized = ?',
+          variables: [Variable<String>(nombre.trim().toLowerCase())]).get();
+      return rows.isEmpty ? null : rows.single.read<String>('exercise_id');
+    }
+
+    expect(await resolver('calves'), 'e-calves');
+    expect(await resolver(' CALF RAISES '), 'e-calves');
+    expect(await resolver('press plano (barra)'), 'e-press');
+    expect(await resolver('inexistente'), isNull);
+  });
+
+  test('el rename actualiza el nombre visible y conserva el vínculo viejo '
+      '(ADR-0011)', () async {
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e1',
+        name: 'Calf raises',
+        muscleGroup: MuscleGroup.pierna));
+    await renameExercise.handle(
+        RenameExercise(exerciseId: 'e1', newName: 'Standing calf raise'));
+
+    final ejercicio = (await readModels.exercises()).single;
+    expect(ejercicio.name, 'Standing calf raise');
+
+    final vinculos = await db
+        .customSelect('SELECT name_normalized FROM $gymExerciseNamesTable '
+            "WHERE exercise_id = 'e1' ORDER BY name_normalized")
+        .get();
+    expect(vinculos.map((r) => r.read<String>('name_normalized')),
+        ['calf raises', 'standing calf raise']);
+  });
+
   test('PRUEBA ÁCIDA: reset de proyecciones + replay = estado idéntico',
       () async {
     await entrenoDePierna('w1');
@@ -168,6 +230,14 @@ void main() {
     now = DateTime.utc(2026, 6, 16, 9);
     await addMissed.handle(AddMissedSet(
         workoutId: 'w1', exercise: 'calf raises', weightKg: 40, reps: 12));
+    // Historia del catálogo incluida (ADR-0011): alta con legacy y rename.
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e1',
+        name: 'Calf raises',
+        muscleGroup: MuscleGroup.pierna,
+        legacyNames: ['Calves']));
+    await renameExercise.handle(
+        RenameExercise(exerciseId: 'e1', newName: 'Standing calf raise'));
 
     Future<List<Map<String, Object?>>> snapshot(String table) async {
       final rows =
@@ -175,14 +245,21 @@ void main() {
       return rows.map((r) => r.data).toList();
     }
 
-    final historiaAntes = await snapshot(workoutHistoryTable);
-    final seriesAntes = await snapshot(gymSetsTable);
-    expect(historiaAntes, isNotEmpty);
-    expect(seriesAntes, isNotEmpty);
+    final tablas = [
+      workoutHistoryTable,
+      gymSetsTable,
+      gymExercisesTable,
+      gymExerciseNamesTable,
+    ];
+    final antes = {for (final t in tablas) t: await snapshot(t)};
+    for (final t in tablas) {
+      expect(antes[t], isNotEmpty, reason: '$t debería tener filas');
+    }
 
     await engine.rebuild(store.readAll());
 
-    expect(await snapshot(workoutHistoryTable), historiaAntes);
-    expect(await snapshot(gymSetsTable), seriesAntes);
+    for (final t in tablas) {
+      expect(await snapshot(t), antes[t], reason: '$t debe calcar al vivo');
+    }
   });
 }

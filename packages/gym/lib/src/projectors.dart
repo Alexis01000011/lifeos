@@ -4,6 +4,7 @@ import 'package:core/core.dart';
 import 'package:drift/drift.dart';
 
 import 'events.dart';
+import 'exercise_catalog.dart';
 import 'read_model.dart';
 
 // isoWeekStartUtc se movió a core en Fase 4 (el hub también bucketiza por
@@ -136,5 +137,67 @@ class WorkoutSetsProjector implements Projector {
   Future<void> reset() async {
     await _db.customStatement('DELETE FROM $gymSetsTable');
     _db.notifyUpdates({TableUpdate(gymSetsTable)});
+  }
+}
+
+/// Catálogo de ejercicios (ADR-0011): una fila por ejercicio más el mapa
+/// de nombres con que las consultas resuelven series viejas a texto libre.
+/// Nombre nuevo → checkpoint 0 → el catch-up del arranque lo puebla.
+class ExerciseCatalogProjector implements Projector {
+  final GeneratedDatabase _db;
+
+  ExerciseCatalogProjector(this._db);
+
+  @override
+  String get name => 'gym.exercises';
+
+  @override
+  Set<String> get handledEventTypes =>
+      {ExerciseAdded.type, ExerciseRenamed.type};
+
+  @override
+  FutureOr<void> project(EventEnvelope envelope) async {
+    switch (envelope.event) {
+      case ExerciseAdded(
+          :final exerciseId,
+          :final name,
+          :final muscleGroup,
+          :final legacyNames
+        ):
+        await _db.customStatement(
+          'INSERT INTO $gymExercisesTable (exercise_id, name, muscle_group) '
+          'VALUES (?, ?, ?)',
+          [exerciseId, name, muscleGroup.name],
+        );
+        for (final claimed in [name, ...legacyNames]) {
+          await _db.customStatement(
+            'INSERT INTO $gymExerciseNamesTable (name_normalized, exercise_id) '
+            'VALUES (?, ?)',
+            [normalizeExerciseName(claimed), exerciseId],
+          );
+        }
+      case ExerciseRenamed(:final exerciseId, :final newName):
+        await _db.customStatement(
+          'UPDATE $gymExercisesTable SET name = ? WHERE exercise_id = ?',
+          [newName, exerciseId],
+        );
+        // OR IGNORE: un rename que solo cambia mayúsculas re-reclama un
+        // nombre que el ejercicio ya tenía vinculado.
+        await _db.customStatement(
+          'INSERT OR IGNORE INTO $gymExerciseNamesTable '
+          '(name_normalized, exercise_id) VALUES (?, ?)',
+          [normalizeExerciseName(newName), exerciseId],
+        );
+    }
+    _db.notifyUpdates(
+        {TableUpdate(gymExercisesTable), TableUpdate(gymExerciseNamesTable)});
+  }
+
+  @override
+  Future<void> reset() async {
+    await _db.customStatement('DELETE FROM $gymExercisesTable');
+    await _db.customStatement('DELETE FROM $gymExerciseNamesTable');
+    _db.notifyUpdates(
+        {TableUpdate(gymExercisesTable), TableUpdate(gymExerciseNamesTable)});
   }
 }

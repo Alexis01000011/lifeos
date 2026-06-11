@@ -1,10 +1,14 @@
 import 'package:drift/drift.dart';
 
+import 'events.dart';
+
 /// Read model del módulo (ADR-0008): tablas propias creadas con SQL crudo
 /// sobre la database compuesta. Nadie fuera de gym lee estas tablas.
 
 const workoutHistoryTable = 'gym_workout_history';
 const gymSetsTable = 'gym_sets';
+const gymExercisesTable = 'gym_exercises';
+const gymExerciseNamesTable = 'gym_exercise_names';
 
 /// Idempotente; la app shell lo llama en su arranque, junto con
 /// createEventStoreSchema. Las tablas son desechables por contrato:
@@ -34,6 +38,22 @@ Future<void> createGymReadModelSchema(GeneratedDatabase db) async {
       week_start          TEXT    NOT NULL,
       is_late             INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (workout_id, position)
+    )
+  ''');
+  // Catálogo de ejercicios (ADR-0011): una fila por ejercicio, más el mapa
+  // de nombres (actuales + históricos + legacy, normalizados) con el que
+  // las consultas resuelven las series registradas a texto libre.
+  await db.customStatement('''
+    CREATE TABLE IF NOT EXISTS $gymExercisesTable (
+      exercise_id  TEXT NOT NULL PRIMARY KEY,
+      name         TEXT NOT NULL,
+      muscle_group TEXT NOT NULL
+    )
+  ''');
+  await db.customStatement('''
+    CREATE TABLE IF NOT EXISTS $gymExerciseNamesTable (
+      name_normalized TEXT NOT NULL PRIMARY KEY,
+      exercise_id     TEXT NOT NULL
     )
   ''');
   // Acumulador reemplazado por gym_sets (ADR-0010). Las tablas de lectura
@@ -69,6 +89,19 @@ class WeeklyVolume {
   WeeklyVolume({required this.weekStart, required this.totalVolumeKg});
 }
 
+/// Un ejercicio del catálogo, para el picker y la pantalla de catálogo.
+class ExerciseSummary {
+  final String exerciseId;
+  final String name;
+  final String muscleGroup;
+
+  ExerciseSummary({
+    required this.exerciseId,
+    required this.name,
+    required this.muscleGroup,
+  });
+}
+
 /// API de consulta del módulo. La UI (Fase 3) la envuelve en providers;
 /// la reactividad se arma con tableUpdates sobre los nombres de tabla.
 class GymReadModels {
@@ -97,6 +130,31 @@ class GymReadModels {
           totalVolumeKg: row.read<double>('total_volume_kg'),
         ),
     ];
+  }
+
+  /// Catálogo completo, ordenado por grupo muscular (orden del enum, que
+  /// es el de la rutina real) y nombre.
+  Future<List<ExerciseSummary>> exercises() async {
+    final rows = await _db
+        .customSelect('SELECT * FROM $gymExercisesTable ORDER BY name')
+        .get();
+    final summaries = [
+      for (final row in rows)
+        ExerciseSummary(
+          exerciseId: row.read<String>('exercise_id'),
+          name: row.read<String>('name'),
+          muscleGroup: row.read<String>('muscle_group'),
+        ),
+    ];
+    final groupOrder = {
+      for (final (i, g) in MuscleGroup.values.indexed) g.name: i,
+    };
+    summaries.sort((a, b) {
+      final byGroup = (groupOrder[a.muscleGroup] ?? 99)
+          .compareTo(groupOrder[b.muscleGroup] ?? 99);
+      return byGroup != 0 ? byGroup : a.name.compareTo(b.name);
+    });
+    return summaries;
   }
 
   Future<List<WeeklyVolume>> weeklyVolume() async {

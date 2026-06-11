@@ -1,5 +1,7 @@
 import 'package:core/core.dart';
 
+import 'events.dart';
+import 'exercise_catalog.dart';
 import 'workout.dart';
 
 /// Comandos del módulo: intenciones que la UI despacha. Los handlers solo
@@ -14,6 +16,7 @@ class StartWorkout implements Command {
 class LogSet implements Command {
   final String workoutId;
   final String exercise;
+  final String? exerciseId;
   final double weightKg;
   final int reps;
   final int? restBeforeSeconds;
@@ -21,6 +24,7 @@ class LogSet implements Command {
   LogSet({
     required this.workoutId,
     required this.exercise,
+    this.exerciseId,
     required this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
@@ -40,6 +44,7 @@ class DiscardWorkout implements Command {
 class AddMissedSet implements Command {
   final String workoutId;
   final String exercise;
+  final String? exerciseId;
   final double weightKg;
   final int reps;
   final int? restBeforeSeconds;
@@ -47,10 +52,32 @@ class AddMissedSet implements Command {
   AddMissedSet({
     required this.workoutId,
     required this.exercise,
+    this.exerciseId,
     required this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
   });
+}
+
+class AddExercise implements Command {
+  final String exerciseId;
+  final String name;
+  final MuscleGroup muscleGroup;
+  final List<String> legacyNames;
+
+  AddExercise({
+    required this.exerciseId,
+    required this.name,
+    required this.muscleGroup,
+    this.legacyNames = const [],
+  });
+}
+
+class RenameExercise implements Command {
+  final String exerciseId;
+  final String newName;
+
+  RenameExercise({required this.exerciseId, required this.newName});
 }
 
 class StartWorkoutHandler implements CommandHandler<StartWorkout> {
@@ -77,6 +104,7 @@ class LogSetHandler implements CommandHandler<LogSet> {
     final workout = await _load(_workouts, command.workoutId);
     workout.logSet(
       exercise: command.exercise,
+      exerciseId: command.exerciseId,
       weightKg: command.weightKg,
       reps: command.reps,
       restBeforeSeconds: command.restBeforeSeconds,
@@ -118,11 +146,50 @@ class AddMissedSetHandler implements CommandHandler<AddMissedSet> {
     final workout = await _load(_workouts, command.workoutId);
     workout.addMissedSet(
       exercise: command.exercise,
+      exerciseId: command.exerciseId,
       weightKg: command.weightKg,
       reps: command.reps,
       restBeforeSeconds: command.restBeforeSeconds,
     );
     await _workouts.save(workout);
+  }
+}
+
+/// El primer alta crea el agregado singleton (load-or-create): el catálogo
+/// no tiene un "comando de creación" propio — existe desde que tiene algo.
+class AddExerciseHandler implements CommandHandler<AddExercise> {
+  final AggregateRepository<ExerciseCatalog> _catalogs;
+  AddExerciseHandler(this._catalogs);
+
+  @override
+  Future<void> handle(AddExercise command) async {
+    final catalog = await _catalogs.load(ExerciseCatalog.singletonId) ??
+        ExerciseCatalog(ExerciseCatalog.singletonId);
+    catalog.addExercise(
+      exerciseId: command.exerciseId,
+      name: command.name,
+      muscleGroup: command.muscleGroup,
+      legacyNames: command.legacyNames,
+    );
+    await _catalogs.save(catalog);
+  }
+}
+
+class RenameExerciseHandler implements CommandHandler<RenameExercise> {
+  final AggregateRepository<ExerciseCatalog> _catalogs;
+  RenameExerciseHandler(this._catalogs);
+
+  @override
+  Future<void> handle(RenameExercise command) async {
+    final catalog = await _catalogs.load(ExerciseCatalog.singletonId);
+    if (catalog == null) {
+      throw DomainException('El catálogo está vacío.');
+    }
+    catalog.renameExercise(
+      exerciseId: command.exerciseId,
+      newName: command.newName,
+    );
+    await _catalogs.save(catalog);
   }
 }
 

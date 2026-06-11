@@ -6,6 +6,7 @@ library gym;
 
 export 'src/commands.dart';
 export 'src/events.dart';
+export 'src/exercise_catalog.dart';
 export 'src/integration.dart';
 export 'src/projectors.dart';
 export 'src/read_model.dart';

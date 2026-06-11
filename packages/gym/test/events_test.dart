@@ -69,11 +69,69 @@ void main() {
     expect(sinDescanso.restBeforeSeconds, isNull);
   });
 
+  test('SetLogged y SetLoggedLate llevan exerciseId y defaultean a null '
+      'en eventos pre-catálogo (weak schema, ADR-0011)', () {
+    final conId = roundtrip(SetLogged(
+        exercise: 'Calves', exerciseId: 'e1', weightKg: 40, reps: 12))
+        as SetLogged;
+    expect(conId.exerciseId, 'e1');
+
+    final tardiaConId = roundtrip(SetLoggedLate(
+        exercise: 'Calves', exerciseId: 'e1', weightKg: 40, reps: 12))
+        as SetLoggedLate;
+    expect(tardiaConId.exerciseId, 'e1');
+
+    // El JSON persistido antes del catálogo no trae el campo.
+    final viejo = registry.deserialize(SetLogged.type, 1,
+        const {'exercise': 'Calves', 'weightKg': 40, 'reps': 12}) as SetLogged;
+    expect(viejo.exerciseId, isNull);
+    expect(viejo.exercise, 'Calves');
+  });
+
+  test('ExerciseAdded sobrevive el roundtrip y defaultea legacyNames a '
+      'lista vacía (weak schema)', () {
+    final leido = roundtrip(ExerciseAdded(
+      exerciseId: 'e1',
+      name: 'Calf raises',
+      muscleGroup: MuscleGroup.pierna,
+      legacyNames: ['Calves'],
+    )) as ExerciseAdded;
+    expect(leido.exerciseId, 'e1');
+    expect(leido.name, 'Calf raises');
+    expect(leido.muscleGroup, MuscleGroup.pierna);
+    expect(leido.legacyNames, ['Calves']);
+
+    final sinLegacy = registry.deserialize(ExerciseAdded.type, 1, const {
+      'exerciseId': 'e2',
+      'name': 'Press plano',
+      'muscleGroup': 'pecho',
+    }) as ExerciseAdded;
+    expect(sinLegacy.legacyNames, isEmpty);
+  });
+
+  test('ExerciseRenamed sobrevive el roundtrip', () {
+    final leido = roundtrip(
+            ExerciseRenamed(exerciseId: 'e1', newName: 'Standing calf raise'))
+        as ExerciseRenamed;
+    expect(leido.exerciseId, 'e1');
+    expect(leido.newName, 'Standing calf raise');
+  });
+
+  test('el grupo muscular viaja como string estable (name del enum, '
+      'nunca el índice)', () {
+    final json = ExerciseAdded(
+            exerciseId: 'e1', name: 'Curl', muscleGroup: MuscleGroup.biceps)
+        .toJson();
+    expect(json['muscleGroup'], 'biceps');
+  });
+
   test('los eventType son estables (contrato de persistencia)', () {
     expect(WorkoutStarted.type, 'gym.workout_started');
     expect(SetLogged.type, 'gym.set_logged');
     expect(WorkoutCompleted.type, 'gym.workout_completed');
     expect(WorkoutDiscarded.type, 'gym.workout_discarded');
     expect(SetLoggedLate.type, 'gym.set_logged_late');
+    expect(ExerciseAdded.type, 'gym.exercise_added');
+    expect(ExerciseRenamed.type, 'gym.exercise_renamed');
   });
 }

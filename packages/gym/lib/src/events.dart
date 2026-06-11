@@ -23,8 +23,15 @@ class WorkoutStarted implements DomainEvent {
 class SetLogged implements DomainEvent {
   static const type = 'gym.set_logged';
 
-  /// Nombre libre del ejercicio (el catálogo propio llega en Hito 2).
+  /// Nombre del ejercicio, denormalizado: snapshot de cómo se llamaba al
+  /// registrar (ADR-0011). El evento queda autocontenido; un rename
+  /// posterior no reescribe series pasadas.
   final String exercise;
+
+  /// Identidad en el catálogo (ADR-0011). Opcional por weak schema: las
+  /// series persistidas antes del catálogo quedan null y se resuelven por
+  /// el mapa de nombres históricos.
+  final String? exerciseId;
   final double weightKg;
   final int reps;
 
@@ -34,6 +41,7 @@ class SetLogged implements DomainEvent {
 
   SetLogged({
     required this.exercise,
+    this.exerciseId,
     required this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
@@ -48,6 +56,7 @@ class SetLogged implements DomainEvent {
   @override
   Map<String, dynamic> toJson() => {
         'exercise': exercise,
+        if (exerciseId != null) 'exerciseId': exerciseId,
         'weightKg': weightKg,
         'reps': reps,
         if (restBeforeSeconds != null) 'restBeforeSeconds': restBeforeSeconds,
@@ -55,6 +64,7 @@ class SetLogged implements DomainEvent {
 
   static SetLogged fromJson(Map<String, dynamic> json) => SetLogged(
         exercise: json['exercise'] as String,
+        exerciseId: json['exerciseId'] as String?,
         weightKg: (json['weightKg'] as num).toDouble(),
         reps: json['reps'] as int,
         restBeforeSeconds: json['restBeforeSeconds'] as int?,
@@ -110,6 +120,9 @@ class SetLoggedLate implements DomainEvent {
   static const type = 'gym.set_logged_late';
 
   final String exercise;
+
+  /// Misma semántica que en [SetLogged] (ADR-0011).
+  final String? exerciseId;
   final double weightKg;
   final int reps;
 
@@ -118,6 +131,7 @@ class SetLoggedLate implements DomainEvent {
 
   SetLoggedLate({
     required this.exercise,
+    this.exerciseId,
     required this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
@@ -132,6 +146,7 @@ class SetLoggedLate implements DomainEvent {
   @override
   Map<String, dynamic> toJson() => {
         'exercise': exercise,
+        if (exerciseId != null) 'exerciseId': exerciseId,
         'weightKg': weightKg,
         'reps': reps,
         if (restBeforeSeconds != null) 'restBeforeSeconds': restBeforeSeconds,
@@ -139,9 +154,102 @@ class SetLoggedLate implements DomainEvent {
 
   static SetLoggedLate fromJson(Map<String, dynamic> json) => SetLoggedLate(
         exercise: json['exercise'] as String,
+        exerciseId: json['exerciseId'] as String?,
         weightKg: (json['weightKg'] as num).toDouble(),
         reps: json['reps'] as int,
         restBeforeSeconds: json['restBeforeSeconds'] as int?,
+      );
+}
+
+/// Grupo muscular primario de un ejercicio (ADR-0011). Lista plana tomada
+/// de la rutina real; agregar un valor es un cambio de código (aceptado:
+/// app personal, el binario que escribe el valor nuevo es el que lo lee).
+/// En el payload viaja [name] como string estable — nunca el índice.
+enum MuscleGroup {
+  pecho,
+  hombro,
+  triceps,
+  espalda,
+  biceps,
+  pierna,
+  abdomen;
+
+  /// Etiqueta para UI (el name se mantiene sin acentos por estabilidad).
+  String get label => switch (this) {
+        MuscleGroup.triceps => 'tríceps',
+        MuscleGroup.biceps => 'bíceps',
+        _ => name,
+      };
+}
+
+/// Alta de un ejercicio en el catálogo (ADR-0011). [legacyNames] vincula
+/// nombres de texto libre persistidos antes del catálogo; el propio [name]
+/// queda vinculado siempre, sin necesidad de repetirlo acá.
+class ExerciseAdded implements DomainEvent {
+  static const type = 'gym.exercise_added';
+
+  final String exerciseId;
+  final String name;
+  final MuscleGroup muscleGroup;
+  final List<String> legacyNames;
+
+  ExerciseAdded({
+    required this.exerciseId,
+    required this.name,
+    required this.muscleGroup,
+    this.legacyNames = const [],
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'exerciseId': exerciseId,
+        'name': name,
+        'muscleGroup': muscleGroup.name,
+        if (legacyNames.isNotEmpty) 'legacyNames': legacyNames,
+      };
+
+  static ExerciseAdded fromJson(Map<String, dynamic> json) => ExerciseAdded(
+        exerciseId: json['exerciseId'] as String,
+        name: json['name'] as String,
+        muscleGroup: MuscleGroup.values.byName(json['muscleGroup'] as String),
+        legacyNames: [
+          for (final n in json['legacyNames'] as List<dynamic>? ?? const [])
+            n as String,
+        ],
+      );
+}
+
+/// Renombre de un ejercicio (ADR-0011). El nombre anterior sigue
+/// perteneciendo al ejercicio a efectos de resolución de series viejas:
+/// renombrar nunca rompe vínculos.
+class ExerciseRenamed implements DomainEvent {
+  static const type = 'gym.exercise_renamed';
+
+  final String exerciseId;
+  final String newName;
+
+  ExerciseRenamed({required this.exerciseId, required this.newName});
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() =>
+      {'exerciseId': exerciseId, 'newName': newName};
+
+  static ExerciseRenamed fromJson(Map<String, dynamic> json) =>
+      ExerciseRenamed(
+        exerciseId: json['exerciseId'] as String,
+        newName: json['newName'] as String,
       );
 }
 
@@ -153,4 +261,6 @@ void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
   registry.register(WorkoutCompleted.type, 1, WorkoutCompleted.fromJson);
   registry.register(WorkoutDiscarded.type, 1, WorkoutDiscarded.fromJson);
   registry.register(SetLoggedLate.type, 1, SetLoggedLate.fromJson);
+  registry.register(ExerciseAdded.type, 1, ExerciseAdded.fromJson);
+  registry.register(ExerciseRenamed.type, 1, ExerciseRenamed.fromJson);
 }
