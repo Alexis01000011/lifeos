@@ -26,7 +26,7 @@ void main() {
     final registry = DefaultEventTypeRegistry<IntegrationEvent>();
     registerHubIntegrationEvents(registry);
     engine = IntegrationProjectionEngine(
-      [WeeklyWorkoutCountProjector(db)],
+      [HubWorkoutsProjector(db)],
       DriftProjectionCheckpointStore(db),
     );
     log = DriftIntegrationEventLog(db, registry, engine);
@@ -35,11 +35,23 @@ void main() {
 
   tearDown(() => db.close());
 
-  Future<void> publicar(DateTime completedAt) => log.publish(
-        GymWorkoutCompleted(workoutId: 'w${++causa}', completedAt: completedAt),
-        causationEventId: 'de-$causa',
+  Future<String> publicar(DateTime completedAt) async {
+    final workoutId = 'w${++causa}';
+    await log.publish(
+      GymWorkoutCompleted(workoutId: workoutId, completedAt: completedAt),
+      causationEventId: 'de-$causa',
+      sourceModule: 'gym',
+      occurredAt: completedAt,
+    );
+    return workoutId;
+  }
+
+  Future<void> publicarDescarte(String workoutId, DateTime discardedAt) =>
+      log.publish(
+        GymWorkoutDiscarded(workoutId: workoutId, discardedAt: discardedAt),
+        causationEventId: 'de-${++causa}',
         sourceModule: 'gym',
-        occurredAt: completedAt,
+        occurredAt: discardedAt,
       );
 
   test('cuenta entrenos por semana ISO usando el completed_at del contrato',
@@ -56,6 +68,26 @@ void main() {
     expect([for (final s in semanas) s.weekStart], ['2026-06-15', '2026-06-08']);
   });
 
+  test('el compensatorio descuenta el workout de su semana (ADR-0010)',
+      () async {
+    final fantasma = await publicar(DateTime.utc(2026, 6, 10, 18));
+    await publicar(DateTime.utc(2026, 6, 13, 10));
+
+    await publicarDescarte(fantasma, DateTime.utc(2026, 6, 16, 9));
+
+    expect(await readModels.workoutsInWeek('2026-06-08'), 1,
+        reason: 'se descuenta de SU semana, no de la del descarte');
+    expect(await readModels.workoutsInWeek('2026-06-15'), 0);
+  });
+
+  test('un descarte de workout desconocido se ignora sin error', () async {
+    await publicar(DateTime.utc(2026, 6, 10, 18));
+
+    await publicarDescarte('nunca-anunciado', DateTime.utc(2026, 6, 16, 9));
+
+    expect(await readModels.workoutsInWeek('2026-06-08'), 1);
+  });
+
   test('roundtrip del contrato v1 tal como llega del log', () async {
     final completedAt = DateTime.utc(2026, 6, 10, 18, 30);
     await publicar(completedAt);
@@ -68,13 +100,14 @@ void main() {
 
   test('PRUEBA ÁCIDA del hub: reset + replay del log = estado idéntico',
       () async {
-    await publicar(DateTime.utc(2026, 6, 10, 18));
+    final fantasma = await publicar(DateTime.utc(2026, 6, 10, 18));
     await publicar(DateTime.utc(2026, 6, 13, 10));
     await publicar(DateTime.utc(2026, 6, 15, 18));
+    await publicarDescarte(fantasma, DateTime.utc(2026, 6, 16, 9));
 
     Future<List<Map<String, Object?>>> snapshot() async {
       final rows = await db
-          .customSelect('SELECT * FROM $hubWeeklyWorkoutsTable ORDER BY 1')
+          .customSelect('SELECT * FROM $hubWorkoutsTable ORDER BY 1')
           .get();
       return rows.map((r) => r.data).toList();
     }

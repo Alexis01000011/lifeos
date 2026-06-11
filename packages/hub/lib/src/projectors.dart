@@ -6,38 +6,46 @@ import 'package:drift/drift.dart';
 import 'integration_events.dart';
 import 'read_model.dart';
 
-/// Cuenta entrenos completados por semana ISO. Acumulador no idempotente
-/// por sí solo: depende de la guarda de checkpoint del
-/// IntegrationProjectionEngine (mismo trato que los projectors de gym).
+/// Una fila por workout anunciado (ADR-0010): el conteo semanal es GROUP BY
+/// en la consulta, y el compensatorio `gym.workout_discarded` es un DELETE.
+/// Renombrado de 'hub.weekly_workouts' a propósito: nace con checkpoint 0
+/// y el catch-up del arranque lo backfillea desde el log de integración.
 ///
 /// El tiempo que bucketiza es `completed_at` del PAYLOAD (el contrato),
 /// no el occurredAt del envelope: el hub decide con la API pública.
-class WeeklyWorkoutCountProjector implements IntegrationProjector {
+class HubWorkoutsProjector implements IntegrationProjector {
   final GeneratedDatabase _db;
 
-  WeeklyWorkoutCountProjector(this._db);
+  HubWorkoutsProjector(this._db);
 
   @override
-  String get name => 'hub.weekly_workouts';
+  String get name => 'hub.workouts';
 
   @override
-  Set<String> get handledEventTypes => {GymWorkoutCompleted.type};
+  Set<String> get handledEventTypes =>
+      {GymWorkoutCompleted.type, GymWorkoutDiscarded.type};
 
   @override
   FutureOr<void> project(IntegrationEventEnvelope envelope) async {
-    final completed = envelope.event as GymWorkoutCompleted;
-    await _db.customStatement(
-      'INSERT INTO $hubWeeklyWorkoutsTable (week_start, workout_count) '
-      'VALUES (?, 1) '
-      'ON CONFLICT (week_start) DO UPDATE SET workout_count = workout_count + 1',
-      [isoWeekStartUtc(completed.completedAt)],
-    );
-    _db.notifyUpdates({const TableUpdate(hubWeeklyWorkoutsTable)});
+    switch (envelope.event) {
+      case GymWorkoutCompleted(:final workoutId, :final completedAt):
+        await _db.customStatement(
+          'INSERT INTO $hubWorkoutsTable (workout_id, week_start) '
+          'VALUES (?, ?)',
+          [workoutId, isoWeekStartUtc(completedAt)],
+        );
+      case GymWorkoutDiscarded(:final workoutId):
+        await _db.customStatement(
+          'DELETE FROM $hubWorkoutsTable WHERE workout_id = ?',
+          [workoutId],
+        );
+    }
+    _db.notifyUpdates({const TableUpdate(hubWorkoutsTable)});
   }
 
   @override
   Future<void> reset() async {
-    await _db.customStatement('DELETE FROM $hubWeeklyWorkoutsTable');
-    _db.notifyUpdates({const TableUpdate(hubWeeklyWorkoutsTable)});
+    await _db.customStatement('DELETE FROM $hubWorkoutsTable');
+    _db.notifyUpdates({const TableUpdate(hubWorkoutsTable)});
   }
 }
