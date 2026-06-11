@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../format.dart';
 import '../providers.dart';
+import '../widgets/exercise_picker.dart';
 
 /// Pantalla de loggeo. UI delgada (ADR-0002): lee el workout en curso de
 /// una proyección y despacha comandos; ninguna regla de negocio vive acá
@@ -18,14 +19,13 @@ class LogWorkoutScreen extends ConsumerStatefulWidget {
 }
 
 class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
-  final _exercise = TextEditingController();
+  ExerciseSummary? _exercise;
   final _weightKg = TextEditingController();
   final _reps = TextEditingController();
   final _restSeconds = TextEditingController();
 
   @override
   void dispose() {
-    _exercise.dispose();
     _weightKg.dispose();
     _reps.dispose();
     _restSeconds.dispose();
@@ -47,6 +47,12 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
   }
 
   void _logSet(String workoutId) {
+    final exercise = _exercise;
+    if (exercise == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Elegí un ejercicio.')));
+      return;
+    }
     final weightKg = double.tryParse(_weightKg.text.replaceAll(',', '.'));
     final reps = int.tryParse(_reps.text);
     final rest = _restSeconds.text.trim().isEmpty
@@ -59,7 +65,8 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
     }
     _dispatch(() => ref.read(logSetProvider).handle(LogSet(
           workoutId: workoutId,
-          exercise: _exercise.text,
+          exercise: exercise.name,
+          exerciseId: exercise.exerciseId,
           weightKg: weightKg,
           reps: reps,
           restBeforeSeconds: rest,
@@ -110,12 +117,10 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        TextField(
+        ExercisePickerField(
           key: const Key('ejercicio'),
-          controller: _exercise,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-              labelText: 'Ejercicio', border: OutlineInputBorder()),
+          selected: _exercise,
+          onSelected: (exercise) => setState(() => _exercise = exercise),
         ),
         const SizedBox(height: 12),
         Row(

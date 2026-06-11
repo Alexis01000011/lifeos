@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'src/database.dart';
 import 'src/providers.dart';
+import 'src/screens/exercises_screen.dart';
 import 'src/screens/history_screen.dart';
 import 'src/screens/home_screen.dart';
 import 'src/screens/log_workout_screen.dart';
@@ -56,12 +57,14 @@ class _HomeShellState extends State<HomeShell> {
           title: Text(switch (_index) {
         0 => 'lifeos',
         1 => 'Entrenar',
-        _ => 'Historial',
+        2 => 'Historial',
+        _ => 'Ejercicios',
       })),
       body: switch (_index) {
         0 => HomeScreen(onOpenGym: () => setState(() => _index = 2)),
         1 => const LogWorkoutScreen(),
-        _ => const HistoryScreen(),
+        2 => const HistoryScreen(),
+        _ => const ExercisesScreen(),
       },
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -71,6 +74,8 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
               icon: Icon(Icons.fitness_center), label: 'Entrenar'),
           NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
+          NavigationDestination(
+              icon: Icon(Icons.list_alt), label: 'Ejercicios'),
         ],
       ),
     );

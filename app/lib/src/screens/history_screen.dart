@@ -5,6 +5,7 @@ import 'package:gym/gym.dart';
 
 import '../format.dart';
 import '../providers.dart';
+import '../widgets/exercise_picker.dart';
 
 /// Historial: la estadística derivada del walking skeleton (volumen por
 /// semana ISO) y la lista de entrenos. Lee proyecciones y despacha los
@@ -133,61 +134,67 @@ class HistoryScreen extends ConsumerWidget {
 
   Future<void> _agregarSerieOlvidada(
       BuildContext context, WidgetRef ref, WorkoutSummary workout) async {
-    final ejercicio = TextEditingController();
+    ExerciseSummary? ejercicio;
     final peso = TextEditingController();
     final reps = TextEditingController();
     final descanso = TextEditingController();
 
     final agregar = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Serie olvidada'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              key: const Key('tardia-ejercicio'),
-              controller: ejercicio,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Ejercicio'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Serie olvidada'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ExercisePickerField(
+                key: const Key('tardia-ejercicio'),
+                selected: ejercicio,
+                onSelected: (e) => setState(() => ejercicio = e),
+              ),
+              TextField(
+                key: const Key('tardia-peso'),
+                controller: peso,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Peso (kg)'),
+              ),
+              TextField(
+                key: const Key('tardia-reps'),
+                controller: reps,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Reps'),
+              ),
+              TextField(
+                key: const Key('tardia-descanso'),
+                controller: descanso,
+                keyboardType: TextInputType.number,
+                decoration:
+                    const InputDecoration(labelText: 'Descanso (s, opcional)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
             ),
-            TextField(
-              key: const Key('tardia-peso'),
-              controller: peso,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Peso (kg)'),
-            ),
-            TextField(
-              key: const Key('tardia-reps'),
-              controller: reps,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Reps'),
-            ),
-            TextField(
-              key: const Key('tardia-descanso'),
-              controller: descanso,
-              keyboardType: TextInputType.number,
-              decoration:
-                  const InputDecoration(labelText: 'Descanso (s, opcional)'),
+            FilledButton(
+              key: const Key('confirmar-tardia'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Agregar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            key: const Key('confirmar-tardia'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Agregar'),
-          ),
-        ],
       ),
     );
     if (agregar != true || !context.mounted) return;
 
+    if (ejercicio == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Elegí un ejercicio.')));
+      return;
+    }
     final pesoKg = double.tryParse(peso.text.replaceAll(',', '.'));
     final repeticiones = int.tryParse(reps.text);
     final descansoSegundos =
@@ -201,7 +208,8 @@ class HistoryScreen extends ConsumerWidget {
         context,
         () => ref.read(addMissedSetProvider).handle(AddMissedSet(
               workoutId: workout.workoutId,
-              exercise: ejercicio.text,
+              exercise: ejercicio!.name,
+              exerciseId: ejercicio!.exerciseId,
               weightKg: pesoKg,
               reps: repeticiones,
               restBeforeSeconds: descansoSegundos,

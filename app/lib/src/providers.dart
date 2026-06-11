@@ -47,6 +47,7 @@ final projectionEngineProvider = Provider<ProjectionEngine>((ref) {
     [
       WorkoutHistoryProjector(db),
       WorkoutSetsProjector(db),
+      ExerciseCatalogProjector(db),
       PublishWorkoutCompletedPolicy(log),
       PublishWorkoutDiscardedPolicy(log),
     ],
@@ -101,9 +102,29 @@ final addMissedSetProvider = Provider<AddMissedSetHandler>(
   (ref) => AddMissedSetHandler(ref.watch(_workoutsProvider)),
 );
 
+final _exerciseCatalogProvider =
+    Provider<AggregateRepository<ExerciseCatalog>>(
+  (ref) => exerciseCatalogRepository(ref.watch(eventStoreProvider)),
+);
+
+final addExerciseProvider = Provider<AddExerciseHandler>(
+  (ref) => AddExerciseHandler(ref.watch(_exerciseCatalogProvider)),
+);
+final renameExerciseProvider = Provider<RenameExerciseHandler>(
+  (ref) => RenameExerciseHandler(ref.watch(_exerciseCatalogProvider)),
+);
+
 final gymReadModelsProvider = Provider<GymReadModels>(
   (ref) => GymReadModels(ref.watch(databaseProvider)),
 );
+
+/// Catálogo de ejercicios (ADR-0011), reactivo para el picker y la
+/// pantalla Ejercicios.
+final exercisesProvider = StreamProvider<List<ExerciseSummary>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final readModels = ref.watch(gymReadModelsProvider);
+  return watchQuery(db, {gymExercisesTable}, readModels.exercises);
+});
 
 /// Los read models como streams: watchQuery re-consulta cuando los
 /// projectors notifican la tabla (ADR-0008). La UI solo ve AsyncValue.

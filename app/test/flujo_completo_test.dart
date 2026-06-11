@@ -35,13 +35,37 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Selección por el picker real (ADR-0011): elige del catálogo o crea
+  /// al vuelo si el ejercicio todavía no existe.
+  Future<void> elegirEjercicio(
+      WidgetTester tester, Key campo, String nombre,
+      {String grupo = 'pierna'}) async {
+    await tester.tap(find.byKey(campo));
+    await tester.pumpAndSettle();
+    final existente = find.widgetWithText(ListTile, nombre);
+    if (existente.evaluate().isNotEmpty) {
+      await tester.tap(existente.first);
+    } else {
+      await tester.tap(find.byKey(const Key('nuevo-ejercicio')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const Key('nombre-ejercicio')), nombre);
+      await tester.tap(find.byKey(const Key('grupo-muscular')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(grupo).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirmar-ejercicio')));
+    }
+    await tester.pumpAndSettle();
+  }
+
   Future<void> registrarSerie(
     WidgetTester tester, {
     required String ejercicio,
     required String peso,
     required String reps,
   }) async {
-    await tester.enterText(find.byKey(const Key('ejercicio')), ejercicio);
+    await elegirEjercicio(tester, const Key('ejercicio'), ejercicio);
     await tester.enterText(find.byKey(const Key('peso')), peso);
     await tester.enterText(find.byKey(const Key('reps')), reps);
     await tester.tap(find.byKey(const Key('registrar')));
@@ -153,8 +177,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // El caso real: la serie de calves que quedó sin registrar.
-    await tester.enterText(
-        find.byKey(const Key('tardia-ejercicio')), 'calf raises');
+    await elegirEjercicio(
+        tester, const Key('tardia-ejercicio'), 'calf raises');
     await tester.enterText(find.byKey(const Key('tardia-peso')), '40');
     await tester.enterText(find.byKey(const Key('tardia-reps')), '12');
     await tester.tap(find.byKey(const Key('confirmar-tardia')));
@@ -195,8 +219,83 @@ void main() {
         ejercicio: 'sentadilla', peso: 'ochenta', reps: '10');
     expect(find.text('Peso y reps deben ser números.'), findsOneWidget);
 
-    final eventos = await db.customSelect('SELECT * FROM events').get();
-    expect(eventos, hasLength(1),
-        reason: 'solo workout_started; ningún set_logged llegó al store');
+    final series = await db
+        .customSelect(
+            "SELECT * FROM events WHERE event_type = 'gym.set_logged'")
+        .get();
+    expect(series, isEmpty,
+        reason: 'ningún set_logged llegó al store (el alta del ejercicio '
+            'al vuelo sí es un evento legítimo)');
+  });
+
+  testWidgets('catálogo: crear desde Ejercicios, renombrar, y la unicidad '
+      'llega como SnackBar (ADR-0011)', (tester) async {
+    await pumpApp(tester);
+    await irA(tester, 'Ejercicios');
+    expect(find.textContaining('El catálogo está vacío'), findsOneWidget);
+
+    // Alta con nombre histórico: vincula las series viejas a texto libre.
+    await tester.tap(find.byKey(const Key('nuevo-ejercicio-catalogo')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('nombre-ejercicio')), 'Calf raises');
+    await tester.tap(find.byKey(const Key('grupo-muscular')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('pierna').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('nombres-historicos')), 'Calves');
+    await tester.tap(find.byKey(const Key('confirmar-ejercicio')));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(ListTile, 'Calf raises'), findsOneWidget);
+    expect(find.text('pierna'), findsOneWidget, reason: 'header del grupo');
+
+    // La invariante de unicidad cruza desde el agregado como SnackBar
+    // ("Calves" ya pertenece a Calf raises como nombre histórico).
+    await tester.tap(find.byKey(const Key('nuevo-ejercicio-catalogo')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('nombre-ejercicio')), 'Calves');
+    await tester.tap(find.byKey(const Key('grupo-muscular')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('pierna').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-ejercicio')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Calves'), findsNothing);
+
+    // Renombrar: el nombre visible cambia (el vínculo viejo persiste en
+    // el read model, cubierto por los tests del módulo).
+    await tester.tap(find.widgetWithText(ListTile, 'Calf raises'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('renombrar-nombre')), 'Standing calf raise');
+    await tester.tap(find.byKey(const Key('confirmar-renombrar')));
+    await tester.pumpAndSettle();
+    expect(
+        find.widgetWithText(ListTile, 'Standing calf raise'), findsOneWidget);
+  });
+
+  testWidgets('el picker registra la serie con la identidad del catálogo '
+      '(exerciseId en el evento)', (tester) async {
+    final db = await pumpApp(tester);
+    await irA(tester, 'Entrenar');
+    await tester.tap(find.byKey(const Key('empezar')));
+    await tester.pumpAndSettle();
+
+    await registrarSerie(tester,
+        ejercicio: 'Leg press', peso: '180', reps: '10');
+
+    final serie = await db
+        .customSelect(
+            "SELECT payload FROM events WHERE event_type = 'gym.set_logged'")
+        .get();
+    final payload = serie.single.read<String>('payload');
+    expect(payload, contains('"exerciseId"'),
+        reason: 'la serie quedó vinculada al catálogo, no solo al nombre');
+    expect(payload, contains('"exercise":"Leg press"'),
+        reason: 'y conserva el nombre denormalizado');
   });
 }

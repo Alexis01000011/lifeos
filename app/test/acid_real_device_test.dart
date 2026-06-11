@@ -105,6 +105,7 @@ void main() {
         [
           WorkoutHistoryProjector(db),
           WorkoutSetsProjector(db),
+          ExerciseCatalogProjector(db),
           PublishWorkoutCompletedPolicy(log),
           PublishWorkoutDiscardedPolicy(log),
         ],
