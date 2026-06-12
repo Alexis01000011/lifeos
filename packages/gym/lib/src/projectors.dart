@@ -44,6 +44,8 @@ class WorkoutHistoryProjector implements Projector {
           'VALUES (?, ?)',
           [workoutId, envelope.occurredAt.microsecondsSinceEpoch],
         );
+      // Peso null = sin carga externa (ADR-0013): aporta 0 al volumen,
+      // que desde ese ADR significa "carga externa total".
       case SetLogged(:final weightKg, :final reps):
       case SetLoggedLate(:final weightKg, :final reps):
         await _db.customStatement(
@@ -51,7 +53,7 @@ class WorkoutHistoryProjector implements Projector {
           'SET set_count = set_count + 1, '
           '    total_volume_kg = total_volume_kg + ? '
           'WHERE workout_id = ?',
-          [weightKg * reps, workoutId],
+          [(weightKg ?? 0) * reps, workoutId],
         );
       case SetRemoved(:final weightKg, :final reps):
         await _db.customStatement(
@@ -59,10 +61,10 @@ class WorkoutHistoryProjector implements Projector {
           'SET set_count = set_count - 1, '
           '    total_volume_kg = total_volume_kg - ? '
           'WHERE workout_id = ?',
-          [weightKg * reps, workoutId],
+          [(weightKg ?? 0) * reps, workoutId],
         );
       case SetCorrected(:final oldWeightKg, :final oldReps, :final weightKg, :final reps):
-        final delta = weightKg * reps - oldWeightKg * oldReps;
+        final delta = (weightKg ?? 0) * reps - (oldWeightKg ?? 0) * oldReps;
         await _db.customStatement(
           'UPDATE $workoutHistoryTable '
           'SET total_volume_kg = total_volume_kg + ? '
@@ -102,7 +104,10 @@ class WorkoutSetsProjector implements Projector {
   WorkoutSetsProjector(this._db);
 
   @override
-  String get name => 'gym.workout_sets';
+  // Renacido como _v2 (ADR-0013): weight_kg pasó a nullable y la tabla se
+  // recrea; el nombre nuevo arranca en checkpoint 0 y el catch-up del
+  // arranque la backfillea (mecánica de ADR-0010).
+  String get name => 'gym.workout_sets_v2';
 
   @override
   Set<String> get handledEventTypes => {
@@ -190,6 +195,7 @@ class ExerciseCatalogProjector implements Projector {
         ExerciseAdded.type,
         ExerciseRenamed.type,
         ExerciseMuscleGroupCorrected.type,
+        ExerciseModalityCorrected.type,
       };
 
   @override
@@ -199,12 +205,14 @@ class ExerciseCatalogProjector implements Projector {
           :final exerciseId,
           :final name,
           :final muscleGroup,
+          :final modality,
           :final legacyNames
         ):
         await _db.customStatement(
-          'INSERT INTO $gymExercisesTable (exercise_id, name, muscle_group) '
-          'VALUES (?, ?, ?)',
-          [exerciseId, name, muscleGroup.name],
+          'INSERT INTO $gymExercisesTable '
+          '(exercise_id, name, muscle_group, modality) '
+          'VALUES (?, ?, ?, ?)',
+          [exerciseId, name, muscleGroup.name, modality.name],
         );
         for (final claimed in [name, ...legacyNames]) {
           await _db.customStatement(
@@ -229,6 +237,11 @@ class ExerciseCatalogProjector implements Projector {
         await _db.customStatement(
           'UPDATE $gymExercisesTable SET muscle_group = ? WHERE exercise_id = ?',
           [newMuscleGroup.name, exerciseId],
+        );
+      case ExerciseModalityCorrected(:final exerciseId, :final newModality):
+        await _db.customStatement(
+          'UPDATE $gymExercisesTable SET modality = ? WHERE exercise_id = ?',
+          [newModality.name, exerciseId],
         );
     }
     _db.notifyUpdates(

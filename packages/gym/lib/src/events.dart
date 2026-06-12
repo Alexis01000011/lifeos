@@ -32,7 +32,11 @@ class SetLogged implements DomainEvent {
   /// series persistidas antes del catálogo quedan null y se resuelven por
   /// el mapa de nombres históricos.
   final String? exerciseId;
-  final double weightKg;
+
+  /// Carga externa en kg (ADR-0013): null = solo peso corporal; en un
+  /// ejercicio bodyweight un valor significa lastre añadido. Opcional por
+  /// weak schema (los eventos persistidos lo traen siempre).
+  final double? weightKg;
   final int reps;
 
   /// Segundos descansados ANTES de esta serie; null si no se midió
@@ -42,7 +46,7 @@ class SetLogged implements DomainEvent {
   SetLogged({
     required this.exercise,
     this.exerciseId,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
   });
@@ -57,7 +61,7 @@ class SetLogged implements DomainEvent {
   Map<String, dynamic> toJson() => {
         'exercise': exercise,
         if (exerciseId != null) 'exerciseId': exerciseId,
-        'weightKg': weightKg,
+        if (weightKg != null) 'weightKg': weightKg,
         'reps': reps,
         if (restBeforeSeconds != null) 'restBeforeSeconds': restBeforeSeconds,
       };
@@ -65,7 +69,7 @@ class SetLogged implements DomainEvent {
   static SetLogged fromJson(Map<String, dynamic> json) => SetLogged(
         exercise: json['exercise'] as String,
         exerciseId: json['exerciseId'] as String?,
-        weightKg: (json['weightKg'] as num).toDouble(),
+        weightKg: (json['weightKg'] as num?)?.toDouble(),
         reps: json['reps'] as int,
         restBeforeSeconds: json['restBeforeSeconds'] as int?,
       );
@@ -119,12 +123,14 @@ class SetRemoved implements DomainEvent {
   static const type = 'gym.set_removed';
 
   final int position;
-  final double weightKg;
+
+  /// Misma semántica que en [SetLogged] (ADR-0013): null = sin carga externa.
+  final double? weightKg;
   final int reps;
 
   SetRemoved({
     required this.position,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
   });
 
@@ -137,13 +143,13 @@ class SetRemoved implements DomainEvent {
   @override
   Map<String, dynamic> toJson() => {
         'position': position,
-        'weightKg': weightKg,
+        if (weightKg != null) 'weightKg': weightKg,
         'reps': reps,
       };
 
   static SetRemoved fromJson(Map<String, dynamic> json) => SetRemoved(
         position: json['position'] as int,
-        weightKg: (json['weightKg'] as num).toDouble(),
+        weightKg: (json['weightKg'] as num?)?.toDouble(),
         reps: json['reps'] as int,
       );
 }
@@ -159,7 +165,9 @@ class SetLoggedLate implements DomainEvent {
 
   /// Misma semántica que en [SetLogged] (ADR-0011).
   final String? exerciseId;
-  final double weightKg;
+
+  /// Misma semántica que en [SetLogged] (ADR-0013).
+  final double? weightKg;
   final int reps;
 
   /// Misma semántica que en [SetLogged]; null si no se recuerda.
@@ -168,7 +176,7 @@ class SetLoggedLate implements DomainEvent {
   SetLoggedLate({
     required this.exercise,
     this.exerciseId,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
   });
@@ -183,7 +191,7 @@ class SetLoggedLate implements DomainEvent {
   Map<String, dynamic> toJson() => {
         'exercise': exercise,
         if (exerciseId != null) 'exerciseId': exerciseId,
-        'weightKg': weightKg,
+        if (weightKg != null) 'weightKg': weightKg,
         'reps': reps,
         if (restBeforeSeconds != null) 'restBeforeSeconds': restBeforeSeconds,
       };
@@ -191,7 +199,7 @@ class SetLoggedLate implements DomainEvent {
   static SetLoggedLate fromJson(Map<String, dynamic> json) => SetLoggedLate(
         exercise: json['exercise'] as String,
         exerciseId: json['exerciseId'] as String?,
-        weightKg: (json['weightKg'] as num).toDouble(),
+        weightKg: (json['weightKg'] as num?)?.toDouble(),
         reps: json['reps'] as int,
         restBeforeSeconds: json['restBeforeSeconds'] as int?,
       );
@@ -218,6 +226,19 @@ enum MuscleGroup {
       };
 }
 
+/// Modalidad de carga de un ejercicio (ADR-0013). Decide el tratamiento
+/// estadístico (progresión de carga vs progresión de reps) y la semántica
+/// del peso de sus series (carga vs lastre). String estable en el payload.
+enum ExerciseModality {
+  weighted,
+  bodyweight;
+
+  String get label => switch (this) {
+        ExerciseModality.weighted => 'con peso',
+        ExerciseModality.bodyweight => 'peso corporal',
+      };
+}
+
 /// Alta de un ejercicio en el catálogo (ADR-0011). [legacyNames] vincula
 /// nombres de texto libre persistidos antes del catálogo; el propio [name]
 /// queda vinculado siempre, sin necesidad de repetirlo acá.
@@ -227,12 +248,17 @@ class ExerciseAdded implements DomainEvent {
   final String exerciseId;
   final String name;
   final MuscleGroup muscleGroup;
+
+  /// ADR-0013. Opcional por weak schema: los eventos persistidos antes de
+  /// la modalidad leen el default, correcto para todos los existentes.
+  final ExerciseModality modality;
   final List<String> legacyNames;
 
   ExerciseAdded({
     required this.exerciseId,
     required this.name,
     required this.muscleGroup,
+    this.modality = ExerciseModality.weighted,
     this.legacyNames = const [],
   });
 
@@ -247,6 +273,7 @@ class ExerciseAdded implements DomainEvent {
         'exerciseId': exerciseId,
         'name': name,
         'muscleGroup': muscleGroup.name,
+        'modality': modality.name,
         if (legacyNames.isNotEmpty) 'legacyNames': legacyNames,
       };
 
@@ -254,6 +281,10 @@ class ExerciseAdded implements DomainEvent {
         exerciseId: json['exerciseId'] as String,
         name: json['name'] as String,
         muscleGroup: MuscleGroup.values.byName(json['muscleGroup'] as String),
+        modality: switch (json['modality'] as String?) {
+          null => ExerciseModality.weighted,
+          final m => ExerciseModality.values.byName(m),
+        },
         legacyNames: [
           for (final n in json['legacyNames'] as List<dynamic>? ?? const [])
             n as String,
@@ -297,16 +328,19 @@ class SetCorrected implements DomainEvent {
   static const type = 'gym.set_corrected';
 
   final int position;
-  final double oldWeightKg;
+
+  /// Pesos con la semántica de [SetLogged] (ADR-0013): null = sin carga
+  /// externa. Una corrección puede agregar o quitar el lastre.
+  final double? oldWeightKg;
   final int oldReps;
-  final double weightKg;
+  final double? weightKg;
   final int reps;
 
   SetCorrected({
     required this.position,
-    required this.oldWeightKg,
+    this.oldWeightKg,
     required this.oldReps,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
   });
 
@@ -319,17 +353,17 @@ class SetCorrected implements DomainEvent {
   @override
   Map<String, dynamic> toJson() => {
         'position': position,
-        'oldWeightKg': oldWeightKg,
+        if (oldWeightKg != null) 'oldWeightKg': oldWeightKg,
         'oldReps': oldReps,
-        'weightKg': weightKg,
+        if (weightKg != null) 'weightKg': weightKg,
         'reps': reps,
       };
 
   static SetCorrected fromJson(Map<String, dynamic> json) => SetCorrected(
         position: json['position'] as int,
-        oldWeightKg: (json['oldWeightKg'] as num).toDouble(),
+        oldWeightKg: (json['oldWeightKg'] as num?)?.toDouble(),
         oldReps: json['oldReps'] as int,
-        weightKg: (json['weightKg'] as num).toDouble(),
+        weightKg: (json['weightKg'] as num?)?.toDouble(),
         reps: json['reps'] as int,
       );
 }
@@ -367,6 +401,40 @@ class ExerciseMuscleGroupCorrected implements DomainEvent {
       );
 }
 
+/// Corrección de la modalidad de un ejercicio (ADR-0013). Espejo del
+/// compensatorio de grupo muscular: la modalidad equivocada queda en la
+/// historia; el projector aplica la correcta encima.
+class ExerciseModalityCorrected implements DomainEvent {
+  static const type = 'gym.exercise_modality_corrected';
+
+  final String exerciseId;
+  final ExerciseModality newModality;
+
+  ExerciseModalityCorrected({
+    required this.exerciseId,
+    required this.newModality,
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'exerciseId': exerciseId,
+        'newModality': newModality.name,
+      };
+
+  static ExerciseModalityCorrected fromJson(Map<String, dynamic> json) =>
+      ExerciseModalityCorrected(
+        exerciseId: json['exerciseId'] as String,
+        newModality:
+            ExerciseModality.values.byName(json['newModality'] as String),
+      );
+}
+
 /// Registra los deserializadores del módulo. La app shell lo llama al
 /// componer el registry global de domain events.
 void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
@@ -381,4 +449,6 @@ void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
   registry.register(ExerciseRenamed.type, 1, ExerciseRenamed.fromJson);
   registry.register(ExerciseMuscleGroupCorrected.type, 1,
       ExerciseMuscleGroupCorrected.fromJson);
+  registry.register(ExerciseModalityCorrected.type, 1,
+      ExerciseModalityCorrected.fromJson);
 }

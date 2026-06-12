@@ -125,6 +125,69 @@ void main() {
     expect(json['muscleGroup'], 'biceps');
   });
 
+  test('SetLogged sin peso: el campo se omite del JSON y deserializa a '
+      'null — serie sin carga externa (weak schema, ADR-0013)', () {
+    final corporal =
+        SetLogged(exercise: 'Plancha', exerciseId: 'e9', reps: 12);
+    expect(corporal.toJson().containsKey('weightKg'), isFalse);
+
+    final leido = roundtrip(corporal) as SetLogged;
+    expect(leido.weightKg, isNull);
+    expect(leido.reps, 12);
+
+    final tardia = roundtrip(
+            SetLoggedLate(exercise: 'Plancha', exerciseId: 'e9', reps: 12))
+        as SetLoggedLate;
+    expect(tardia.weightKg, isNull);
+  });
+
+  test('SetRemoved y SetCorrected toleran pesos null en ambas direcciones '
+      '(ADR-0013)', () {
+    final removida =
+        roundtrip(SetRemoved(position: 3, reps: 12)) as SetRemoved;
+    expect(removida.weightKg, isNull);
+
+    // Corrección que agrega el lastre olvidado a una serie corporal.
+    final corregida = roundtrip(SetCorrected(
+      position: 3,
+      oldWeightKg: null,
+      oldReps: 12,
+      weightKg: 5,
+      reps: 12,
+    )) as SetCorrected;
+    expect(corregida.oldWeightKg, isNull);
+    expect(corregida.weightKg, 5);
+  });
+
+  test('ExerciseAdded lleva modalidad y defaultea a weighted en eventos '
+      'pre-modalidad (weak schema, ADR-0013)', () {
+    final corporal = roundtrip(ExerciseAdded(
+      exerciseId: 'e9',
+      name: 'Plancha',
+      muscleGroup: MuscleGroup.abdomen,
+      modality: ExerciseModality.bodyweight,
+    )) as ExerciseAdded;
+    expect(corporal.modality, ExerciseModality.bodyweight);
+    expect(corporal.toJson()['modality'], 'bodyweight');
+
+    // El JSON persistido antes de ADR-0013 no trae el campo.
+    final viejo = registry.deserialize(ExerciseAdded.type, 1, const {
+      'exerciseId': 'e1',
+      'name': 'Abdominal curl',
+      'muscleGroup': 'abdomen',
+    }) as ExerciseAdded;
+    expect(viejo.modality, ExerciseModality.weighted);
+  });
+
+  test('ExerciseModalityCorrected sobrevive el roundtrip', () {
+    final leido = roundtrip(ExerciseModalityCorrected(
+      exerciseId: 'e9',
+      newModality: ExerciseModality.bodyweight,
+    )) as ExerciseModalityCorrected;
+    expect(leido.exerciseId, 'e9');
+    expect(leido.newModality, ExerciseModality.bodyweight);
+  });
+
   test('los eventType son estables (contrato de persistencia)', () {
     expect(WorkoutStarted.type, 'gym.workout_started');
     expect(SetLogged.type, 'gym.set_logged');
@@ -133,5 +196,6 @@ void main() {
     expect(SetLoggedLate.type, 'gym.set_logged_late');
     expect(ExerciseAdded.type, 'gym.exercise_added');
     expect(ExerciseRenamed.type, 'gym.exercise_renamed');
+    expect(ExerciseModalityCorrected.type, 'gym.exercise_modality_corrected');
   });
 }

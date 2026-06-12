@@ -23,6 +23,24 @@ void main() {
       expect(catalog.uncommittedEvents.single, isA<ExerciseAdded>());
     });
 
+    test('lleva la modalidad al evento y defaultea a weighted (ADR-0013)',
+        () {
+      catalog
+        ..addExercise(
+            exerciseId: 'e1',
+            name: 'Plancha',
+            muscleGroup: MuscleGroup.abdomen,
+            modality: ExerciseModality.bodyweight)
+        ..addExercise(
+            exerciseId: 'e2',
+            name: 'Abdominal curl',
+            muscleGroup: MuscleGroup.abdomen);
+
+      final eventos = catalog.uncommittedEvents.cast<ExerciseAdded>();
+      expect(eventos.first.modality, ExerciseModality.bodyweight);
+      expect(eventos.last.modality, ExerciseModality.weighted);
+    });
+
     test('vincula los legacyNames del alta (ADR-0011)', () {
       catalog.addExercise(
           exerciseId: 'e1',
@@ -153,6 +171,30 @@ void main() {
       catalog.renameExercise(exerciseId: 'e1', newName: 'PRESS PLANO');
       expect(catalog.uncommittedEvents.single, isA<ExerciseRenamed>());
       expect(catalog.currentNameOf('e1'), 'PRESS PLANO');
+    });
+  });
+
+  group('correctModality (compensatorio, ADR-0013)', () {
+    test('emite el evento sobre un ejercicio existente y rechaza uno '
+        'inexistente', () {
+      catalog
+        ..addExercise(
+            exerciseId: 'e1',
+            name: 'Abdominal curl',
+            muscleGroup: MuscleGroup.abdomen)
+        ..markCommitted()
+        ..correctModality(
+            exerciseId: 'e1', newModality: ExerciseModality.bodyweight);
+
+      final corregido =
+          catalog.uncommittedEvents.single as ExerciseModalityCorrected;
+      expect(corregido.exerciseId, 'e1');
+      expect(corregido.newModality, ExerciseModality.bodyweight);
+
+      expect(
+          () => catalog.correctModality(
+              exerciseId: 'nadie', newModality: ExerciseModality.weighted),
+          throwsA(isA<DomainException>()));
     });
   });
 

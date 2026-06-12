@@ -37,10 +37,20 @@ void main() {
       expect(workout.setCount, 1);
     });
 
-    test('peso 0 es válido (ejercicios a peso corporal)', () {
+    test('peso 0 sigue siendo válido para el dominio (la convención de '
+        'no usarlo como "sin carga" es de la UI, ADR-0013)', () {
       expect(
           () => iniciado().logSet(exercise: 'dominadas', weightKg: 0, reps: 10),
           returnsNormally);
+    });
+
+    test('sin peso emite SetLogged con weightKg null — serie a peso '
+        'corporal (ADR-0013)', () {
+      final workout = iniciado()..logSet(exercise: 'Plancha', reps: 12);
+      final set = workout.uncommittedEvents.last as SetLogged;
+      expect(set.weightKg, isNull);
+      expect(set.reps, 12);
+      expect(workout.setCount, 1);
     });
 
     test('rechaza workout no iniciado, completado, ejercicio vacío, '
@@ -148,6 +158,41 @@ void main() {
       for (final caso in casos) {
         expect(caso, throwsA(isA<DomainException>()));
       }
+    });
+  });
+
+  group('series sin carga externa (ADR-0013)', () {
+    test('removeLastSet de una serie corporal emite SetRemoved con peso '
+        'null', () {
+      final workout = iniciado()
+        ..logSet(exercise: 'Plancha', reps: 12)
+        ..removeLastSet();
+      final removida = workout.uncommittedEvents.last as SetRemoved;
+      expect(removida.weightKg, isNull);
+      expect(removida.reps, 12);
+      expect(workout.setCount, 0);
+    });
+
+    test('correctSet agrega el lastre a una serie corporal (null → valor) '
+        'y lo quita (valor → null)', () {
+      final workout = iniciado()
+        ..logSet(exercise: 'Plancha', reps: 12)
+        ..correctSet(position: 1, weightKg: 5, reps: 12);
+      final conLastre = workout.uncommittedEvents.last as SetCorrected;
+      expect(conLastre.oldWeightKg, isNull);
+      expect(conLastre.weightKg, 5);
+
+      workout.correctSet(position: 1, reps: 12);
+      final sinLastre = workout.uncommittedEvents.last as SetCorrected;
+      expect(sinLastre.oldWeightKg, 5);
+      expect(sinLastre.weightKg, isNull);
+    });
+
+    test('corregir a los mismos valores (ambos sin peso) es no-op', () {
+      final workout = iniciado()..logSet(exercise: 'Plancha', reps: 12);
+      final eventosAntes = workout.uncommittedEvents.length;
+      workout.correctSet(position: 1, reps: 12);
+      expect(workout.uncommittedEvents.length, eventosAntes);
     });
   });
 

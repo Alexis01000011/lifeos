@@ -69,6 +69,9 @@ class ExercisesScreen extends ConsumerWidget {
               for (final exercise in entry.value)
                 ListTile(
                   title: Text(exercise.name),
+                  subtitle: exercise.isBodyweight
+                      ? Text(ExerciseModality.bodyweight.label)
+                      : null,
                   trailing: const Icon(Icons.edit_outlined, size: 18),
                   onTap: () => _editar(context, ref, exercise),
                 ),
@@ -82,6 +85,7 @@ class ExercisesScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, ExerciseSummary exercise) async {
     final nombre = TextEditingController(text: exercise.name);
     var grupo = MuscleGroup.values.byName(exercise.muscleGroup);
+    var modalidad = ExerciseModality.values.byName(exercise.modality);
 
     final confirmado = await showDialog<bool>(
       context: context,
@@ -115,6 +119,18 @@ class ExercisesScreen extends ConsumerWidget {
                   if (value != null) setState(() => grupo = value);
                 },
               ),
+              const SizedBox(height: 8),
+              SegmentedButton<ExerciseModality>(
+                key: const Key('editar-modalidad'),
+                segments: [
+                  for (final m in ExerciseModality.values)
+                    ButtonSegment(value: m, label: Text(m.label)),
+                ],
+                selected: {modalidad},
+                onSelectionChanged: (val) =>
+                    setState(() => modalidad = val.first),
+                showSelectedIcon: false,
+              ),
             ],
           ),
           actions: [
@@ -135,7 +151,8 @@ class ExercisesScreen extends ConsumerWidget {
 
     final nombreCambiado = nombre.text.trim() != exercise.name;
     final grupoCambiado = grupo.name != exercise.muscleGroup;
-    if (!nombreCambiado && !grupoCambiado) return;
+    final modalidadCambiada = modalidad.name != exercise.modality;
+    if (!nombreCambiado && !grupoCambiado && !modalidadCambiada) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -150,6 +167,14 @@ class ExercisesScreen extends ConsumerWidget {
               CorrectExerciseMuscleGroup(
                 exerciseId: exercise.exerciseId,
                 newMuscleGroup: grupo,
+              ),
+            );
+      }
+      if (modalidadCambiada && context.mounted) {
+        await ref.read(correctExerciseModalityProvider).handle(
+              CorrectExerciseModality(
+                exerciseId: exercise.exerciseId,
+                newModality: modalidad,
               ),
             );
       }

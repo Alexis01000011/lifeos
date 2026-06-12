@@ -23,8 +23,8 @@ class Workout extends AggregateRoot {
 
   // Estado write-side: peso y reps de cada serie viva, indexado por posición.
   // Permite emitir SetRemoved y SetCorrected autocontenidos sin consultar
-  // proyecciones (ADR-0012).
-  final Map<int, ({double weightKg, int reps})> _sets = {};
+  // proyecciones (ADR-0012). Peso null = sin carga externa (ADR-0013).
+  final Map<int, ({double? weightKg, int reps})> _sets = {};
 
   bool get isCompleted => _completed;
   bool get isDiscarded => _discarded;
@@ -40,10 +40,12 @@ class Workout extends AggregateRoot {
   /// [exerciseId] referencia al catálogo (ADR-0011). A propósito NO se
   /// valida su existencia: sería una invariante entre agregados. La UI
   /// selecciona del catálogo, así que llega válido por construcción.
+  /// [weightKg] null = sin carga externa (ADR-0013); la coherencia con la
+  /// modalidad del ejercicio también es responsabilidad de la UI.
   void logSet({
     required String exercise,
     String? exerciseId,
-    required double weightKg,
+    double? weightKg,
     required int reps,
     int? restBeforeSeconds,
   }) {
@@ -106,9 +108,11 @@ class Workout extends AggregateRoot {
 
   /// Corrige peso o reps de una serie existente (ADR-0012). Válido tanto
   /// en curso como en completados; no modifica el ejercicio ni el descanso.
+  /// El peso puede corregirse a null (quitar una carga mal registrada) o
+  /// desde null (agregar el lastre olvidado) — ADR-0013.
   void correctSet({
     required int position,
-    required double weightKg,
+    double? weightKg,
     required int reps,
   }) {
     _ensureStarted();
@@ -118,7 +122,9 @@ class Workout extends AggregateRoot {
       throw DomainException('No existe una serie en la posición $position.');
     }
     if (reps < 1) throw DomainException('Una serie tiene al menos 1 repetición.');
-    if (weightKg < 0) throw DomainException('El peso no puede ser negativo.');
+    if (weightKg != null && weightKg < 0) {
+      throw DomainException('El peso no puede ser negativo.');
+    }
     if (weightKg == existing.weightKg && reps == existing.reps) return;
     raise(SetCorrected(
       position: position,
@@ -136,7 +142,7 @@ class Workout extends AggregateRoot {
   void addMissedSet({
     required String exercise,
     String? exerciseId,
-    required double weightKg,
+    double? weightKg,
     required int reps,
     int? restBeforeSeconds,
   }) {
@@ -157,14 +163,14 @@ class Workout extends AggregateRoot {
   }
 
   void _validateSet(
-      String exercise, double weightKg, int reps, int? restBeforeSeconds) {
+      String exercise, double? weightKg, int reps, int? restBeforeSeconds) {
     if (exercise.trim().isEmpty) {
       throw DomainException('La serie necesita un ejercicio.');
     }
     if (reps < 1) {
       throw DomainException('Una serie tiene al menos 1 repetición.');
     }
-    if (weightKg < 0) {
+    if (weightKg != null && weightKg < 0) {
       throw DomainException('El peso no puede ser negativo.');
     }
     if (restBeforeSeconds != null && restBeforeSeconds < 0) {

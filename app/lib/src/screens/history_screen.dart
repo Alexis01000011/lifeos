@@ -164,7 +164,12 @@ class HistoryScreen extends ConsumerWidget {
                 controller: peso,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                decoration: InputDecoration(
+                    labelText: ejercicio?.isBodyweight ?? false
+                        ? 'Lastre (kg)'
+                        : 'Peso (kg)',
+                    hintText:
+                        ejercicio?.isBodyweight ?? false ? 'opcional' : null),
               ),
               TextField(
                 key: const Key('tardia-reps'),
@@ -203,13 +208,20 @@ class HistoryScreen extends ConsumerWidget {
           const SnackBar(content: Text('Elige un ejercicio.')));
       return;
     }
-    final pesoKg = double.tryParse(peso.text.replaceAll(',', '.'));
+    // Ejercicio corporal (ADR-0013): el peso es lastre opcional — vacío
+    // viaja como null, nunca como 0.
+    final esCorporal = ejercicio!.isBodyweight;
+    final pesoTexto = peso.text.trim();
+    final pesoKg = double.tryParse(pesoTexto.replaceAll(',', '.'));
     final repeticiones = int.tryParse(reps.text);
     final descansoSegundos =
         descanso.text.trim().isEmpty ? null : int.tryParse(descanso.text);
-    if (pesoKg == null || repeticiones == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Peso y reps deben ser números.')));
+    if (repeticiones == null ||
+        (pesoKg == null && (!esCorporal || pesoTexto.isNotEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(esCorporal
+              ? 'Reps debe ser un número (y el lastre, si lo pones).'
+              : 'Peso y reps deben ser números.')));
       return;
     }
     await _dispatch(

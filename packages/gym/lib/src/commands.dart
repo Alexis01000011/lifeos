@@ -17,7 +17,9 @@ class LogSet implements Command {
   final String workoutId;
   final String exercise;
   final String? exerciseId;
-  final double weightKg;
+
+  /// null = sin carga externa (ADR-0013).
+  final double? weightKg;
   final int reps;
   final int? restBeforeSeconds;
 
@@ -25,7 +27,7 @@ class LogSet implements Command {
     required this.workoutId,
     required this.exercise,
     this.exerciseId,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
   });
@@ -45,7 +47,9 @@ class AddMissedSet implements Command {
   final String workoutId;
   final String exercise;
   final String? exerciseId;
-  final double weightKg;
+
+  /// null = sin carga externa (ADR-0013).
+  final double? weightKg;
   final int reps;
   final int? restBeforeSeconds;
 
@@ -53,7 +57,7 @@ class AddMissedSet implements Command {
     required this.workoutId,
     required this.exercise,
     this.exerciseId,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
     this.restBeforeSeconds,
   });
@@ -67,13 +71,15 @@ class RemoveLastSet implements Command {
 class CorrectSet implements Command {
   final String workoutId;
   final int position;
-  final double weightKg;
+
+  /// null = sin carga externa (ADR-0013).
+  final double? weightKg;
   final int reps;
 
   CorrectSet({
     required this.workoutId,
     required this.position,
-    required this.weightKg,
+    this.weightKg,
     required this.reps,
   });
 }
@@ -82,12 +88,14 @@ class AddExercise implements Command {
   final String exerciseId;
   final String name;
   final MuscleGroup muscleGroup;
+  final ExerciseModality modality;
   final List<String> legacyNames;
 
   AddExercise({
     required this.exerciseId,
     required this.name,
     required this.muscleGroup,
+    this.modality = ExerciseModality.weighted,
     this.legacyNames = const [],
   });
 }
@@ -106,6 +114,16 @@ class CorrectExerciseMuscleGroup implements Command {
   CorrectExerciseMuscleGroup({
     required this.exerciseId,
     required this.newMuscleGroup,
+  });
+}
+
+class CorrectExerciseModality implements Command {
+  final String exerciseId;
+  final ExerciseModality newModality;
+
+  CorrectExerciseModality({
+    required this.exerciseId,
+    required this.newModality,
   });
 }
 
@@ -226,6 +244,7 @@ class AddExerciseHandler implements CommandHandler<AddExercise> {
       exerciseId: command.exerciseId,
       name: command.name,
       muscleGroup: command.muscleGroup,
+      modality: command.modality,
       legacyNames: command.legacyNames,
     );
     await _catalogs.save(catalog);
@@ -264,6 +283,25 @@ class CorrectExerciseMuscleGroupHandler
     catalog.correctMuscleGroup(
       exerciseId: command.exerciseId,
       newMuscleGroup: command.newMuscleGroup,
+    );
+    await _catalogs.save(catalog);
+  }
+}
+
+class CorrectExerciseModalityHandler
+    implements CommandHandler<CorrectExerciseModality> {
+  final AggregateRepository<ExerciseCatalog> _catalogs;
+  CorrectExerciseModalityHandler(this._catalogs);
+
+  @override
+  Future<void> handle(CorrectExerciseModality command) async {
+    final catalog = await _catalogs.load(ExerciseCatalog.singletonId);
+    if (catalog == null) {
+      throw DomainException('El catálogo está vacío.');
+    }
+    catalog.correctModality(
+      exerciseId: command.exerciseId,
+      newModality: command.newModality,
     );
     await _catalogs.save(catalog);
   }

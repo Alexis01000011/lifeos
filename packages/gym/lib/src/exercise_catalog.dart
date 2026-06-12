@@ -39,6 +39,7 @@ class ExerciseCatalog extends AggregateRoot {
     required String exerciseId,
     required String name,
     required MuscleGroup muscleGroup,
+    ExerciseModality modality = ExerciseModality.weighted,
     List<String> legacyNames = const [],
   }) {
     if (exerciseId.trim().isEmpty) {
@@ -71,6 +72,7 @@ class ExerciseCatalog extends AggregateRoot {
       exerciseId: exerciseId,
       name: cleanName,
       muscleGroup: muscleGroup,
+      modality: modality,
       legacyNames: cleanLegacy,
     ));
   }
@@ -105,6 +107,19 @@ class ExerciseCatalog extends AggregateRoot {
     ));
   }
 
+  void correctModality({
+    required String exerciseId,
+    required ExerciseModality newModality,
+  }) {
+    if (!hasExercise(exerciseId)) {
+      throw DomainException('Ese ejercicio no existe en el catálogo.');
+    }
+    raise(ExerciseModalityCorrected(
+      exerciseId: exerciseId,
+      newModality: newModality,
+    ));
+  }
+
   @override
   void apply(DomainEvent event) {
     switch (event) {
@@ -122,8 +137,9 @@ class ExerciseCatalog extends AggregateRoot {
         _currentNameById[exerciseId] = newName;
         _ownerByClaimedName[normalizeExerciseName(newName)] = exerciseId;
       case ExerciseMuscleGroupCorrected():
-        // El grupo muscular no forma parte de los invariantes (la unicidad
-        // es por nombre); no hay estado interno que actualizar.
+      case ExerciseModalityCorrected():
+        // Ni el grupo muscular ni la modalidad forman parte de los
+        // invariantes (la unicidad es por nombre); nada que actualizar.
         break;
       default:
         throw StateError('Evento ajeno al catálogo: ${event.eventType}');

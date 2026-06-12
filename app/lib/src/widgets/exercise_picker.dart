@@ -219,6 +219,7 @@ Future<ExerciseSummary?> showAddExerciseDialog(
   final nombre = TextEditingController(text: initialName);
   final historicos = TextEditingController();
   MuscleGroup? grupo;
+  var modalidad = ExerciseModality.weighted;
 
   final confirmado = await showDialog<bool>(
     context: context,
@@ -248,6 +249,20 @@ Future<ExerciseSummary?> showAddExerciseDialog(
                   DropdownMenuItem(value: g, child: Text(g.label)),
               ],
               onChanged: (value) => setState(() => grupo = value),
+            ),
+            const SizedBox(height: 8),
+            // Modalidad (ADR-0013): decide si las series piden peso o
+            // lastre opcional, y el tratamiento estadístico.
+            SegmentedButton<ExerciseModality>(
+              key: const Key('modalidad'),
+              segments: [
+                for (final m in ExerciseModality.values)
+                  ButtonSegment(value: m, label: Text(m.label)),
+              ],
+              selected: {modalidad},
+              onSelectionChanged: (val) =>
+                  setState(() => modalidad = val.first),
+              showSelectedIcon: false,
             ),
             TextField(
               key: const Key('nombres-historicos'),
@@ -291,6 +306,7 @@ Future<ExerciseSummary?> showAddExerciseDialog(
           exerciseId: exerciseId,
           name: nombre.text,
           muscleGroup: grupo!,
+          modality: modalidad,
           legacyNames: legacy,
         ));
   } on DomainException catch (e) {
@@ -305,6 +321,7 @@ Future<ExerciseSummary?> showAddExerciseDialog(
     exerciseId: exerciseId,
     name: nombre.text.trim(),
     muscleGroup: grupo!.name,
+    modality: modalidad.name,
   );
 }
 

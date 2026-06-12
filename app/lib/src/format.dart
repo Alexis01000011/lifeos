@@ -18,3 +18,11 @@ String formatWeekStart(String weekStart) {
 /// Volumen sin decimales fantasma: 3840 → '3840', 102.5 → '102.5'.
 String formatKg(double kg) =>
     kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : kg.toStringAsFixed(1);
+
+/// Carga × reps de una serie (ADR-0013): '80 kg × 10' la weighted,
+/// '× 12' la corporal sin lastre, '+5 kg × 12' la corporal con lastre.
+String formatSetLoad(double? weightKg, int reps, {bool isBodyweight = false}) {
+  if (weightKg == null) return '× $reps';
+  final prefix = isBodyweight ? '+' : '';
+  return '$prefix${formatKg(weightKg)} kg × $reps';
+}

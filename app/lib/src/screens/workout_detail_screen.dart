@@ -84,7 +84,7 @@ class WorkoutDetailScreen extends ConsumerWidget {
           ? Text('Descanso previo: ${set.restBeforeSeconds} s')
           : null,
       trailing: Text(
-        '${formatKg(set.weightKg)} kg × ${set.reps}',
+        formatSetLoad(set.weightKg, set.reps, isBodyweight: set.isBodyweight),
         style: theme.textTheme.titleSmall,
       ),
       onTap: () => showSetCorrectionSheet(context, ref, workoutId, set),
@@ -99,8 +99,11 @@ Future<void> showSetCorrectionSheet(
   String workoutId,
   SetSummary set,
 ) async {
-  final weightCtrl =
-      TextEditingController(text: formatKg(set.weightKg));
+  // Serie corporal (ADR-0013): el peso es lastre opcional — el campo
+  // vacío significa "sin carga externa" y viaja como null.
+  final isBodyweight = set.isBodyweight;
+  final weightCtrl = TextEditingController(
+      text: set.weightKg != null ? formatKg(set.weightKg!) : '');
   final repsCtrl = TextEditingController(text: set.reps.toString());
 
   await showModalBottomSheet<void>(
@@ -126,9 +129,10 @@ Future<void> showSetCorrectionSheet(
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Peso (kg)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isBodyweight ? 'Lastre (kg)' : 'Peso (kg)',
+                    hintText: isBodyweight ? 'opcional' : null,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -150,13 +154,17 @@ Future<void> showSetCorrectionSheet(
             style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48)),
             onPressed: () async {
-              final weightKg = double.tryParse(
-                  weightCtrl.text.replaceAll(',', '.'));
+              final weightText = weightCtrl.text.trim();
+              final weightKg =
+                  double.tryParse(weightText.replaceAll(',', '.'));
               final reps = int.tryParse(repsCtrl.text);
-              if (weightKg == null || reps == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Peso y reps deben ser números.')));
+              if (reps == null ||
+                  (weightKg == null &&
+                      (!isBodyweight || weightText.isNotEmpty))) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(isBodyweight
+                        ? 'Reps debe ser un número (y el lastre, si lo pones).'
+                        : 'Peso y reps deben ser números.')));
                 return;
               }
               Navigator.of(sheetCtx).pop();

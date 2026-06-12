@@ -124,6 +124,10 @@ final correctExerciseMuscleGroupProvider =
   (ref) =>
       CorrectExerciseMuscleGroupHandler(ref.watch(_exerciseCatalogProvider)),
 );
+final correctExerciseModalityProvider =
+    Provider<CorrectExerciseModalityHandler>(
+  (ref) => CorrectExerciseModalityHandler(ref.watch(_exerciseCatalogProvider)),
+);
 
 final gymReadModelsProvider = Provider<GymReadModels>(
   (ref) => GymReadModels(ref.watch(databaseProvider)),
@@ -155,8 +159,12 @@ final workoutSetsProvider =
     StreamProvider.family<List<SetSummary>, String>((ref, workoutId) {
   final db = ref.watch(databaseProvider);
   final readModels = ref.watch(gymReadModelsProvider);
+  // Observa también el catálogo: la consulta resuelve la modalidad por
+  // join y una corrección de modalidad debe refrescar las series.
   return watchQuery(
-      db, {gymSetsTable}, () => readModels.setsForWorkout(workoutId));
+      db,
+      {gymSetsTable, gymExercisesTable, gymExerciseNamesTable},
+      () => readModels.setsForWorkout(workoutId));
 });
 
 /// Top 5 ejercicios por frecuencia de uso; alimenta la sección "Frecuentes"

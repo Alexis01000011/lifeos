@@ -290,6 +290,49 @@ void main() {
         find.widgetWithText(ListTile, 'Standing calf raise'), findsOneWidget);
   });
 
+  testWidgets('ejercicio corporal: serie sin peso, lastre opcional y el '
+      'volumen cuenta solo la carga externa (ADR-0013)', (tester) async {
+    await pumpApp(tester);
+    await irA(tester, 'Entrenar');
+    await tester.tap(find.byKey(const Key('empezar')));
+    await tester.pumpAndSettle();
+
+    // Alta al vuelo con modalidad corporal.
+    await tester.tap(find.byKey(const Key('ejercicio')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('nuevo-ejercicio')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('nombre-ejercicio')), 'Plancha');
+    await tester.tap(find.byKey(const Key('grupo-muscular')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('abdomen').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('peso corporal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-ejercicio')));
+    await tester.pumpAndSettle();
+
+    // El campo de peso se volvió lastre opcional: registrar sin peso.
+    expect(find.text('Lastre (kg)'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('reps')), '12');
+    await tester.tap(find.byKey(const Key('registrar')));
+    await tester.pumpAndSettle();
+    expect(find.text('× 12'), findsOneWidget,
+        reason: 'serie corporal sin carga externa');
+    expect(find.text('0 kg'), findsOneWidget,
+        reason: 'el volumen no inventa kilos');
+
+    // Con lastre: el peso registrado es la carga añadida.
+    await tester.enterText(find.byKey(const Key('peso')), '5');
+    await tester.enterText(find.byKey(const Key('reps')), '10');
+    await tester.tap(find.byKey(const Key('registrar')));
+    await tester.pumpAndSettle();
+    expect(find.text('+5 kg × 10'), findsOneWidget);
+    expect(find.text('50 kg'), findsOneWidget,
+        reason: 'solo el lastre cuenta como volumen');
+  });
+
   testWidgets('el picker registra la serie con la identidad del catálogo '
       '(exerciseId en el evento)', (tester) async {
     final db = await pumpApp(tester);

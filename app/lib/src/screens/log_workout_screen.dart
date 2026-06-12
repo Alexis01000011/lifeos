@@ -59,17 +59,23 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           const SnackBar(content: Text('Elige un ejercicio.')));
       return;
     }
-    final rawWeight =
-        double.tryParse(_weightCtrl.text.replaceAll(',', '.'));
+    // Ejercicio corporal (ADR-0013): el peso es lastre opcional — vacío
+    // significa "solo peso corporal" y viaja como null, nunca como 0.
+    final isBodyweight = exercise.isBodyweight;
+    final weightText = _weightCtrl.text.trim();
+    final rawWeight = double.tryParse(weightText.replaceAll(',', '.'));
     final weightKg =
         rawWeight == null ? null : (_isLbs ? rawWeight * 0.453592 : rawWeight);
     final reps = int.tryParse(_reps.text);
     final rest = _restSeconds.text.trim().isEmpty
         ? null
         : int.tryParse(_restSeconds.text);
-    if (weightKg == null || reps == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Peso y reps deben ser números.')));
+    if (reps == null ||
+        (weightKg == null && (!isBodyweight || weightText.isNotEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isBodyweight
+              ? 'Reps debe ser un número (y el lastre, si lo pones).'
+              : 'Peso y reps deben ser números.')));
       return;
     }
     final ok = await _dispatch(() => ref.read(logSetProvider).handle(LogSet(
@@ -152,7 +158,8 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
                 .lastSetForExercise(exercise.exerciseId);
             if (!mounted) return;
             setState(() {
-              _weightCtrl.text = last != null ? formatKg(last.weightKg) : '';
+              final lastWeight = last?.weightKg;
+              _weightCtrl.text = lastWeight != null ? formatKg(lastWeight) : '';
               _reps.text = last != null ? last.reps.toString() : '';
             });
           },
@@ -185,7 +192,11 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                    labelText: 'Peso (${_isLbs ? "lb" : "kg"})',
+                    labelText: _exercise?.isBodyweight ?? false
+                        ? 'Lastre (${_isLbs ? "lb" : "kg"})'
+                        : 'Peso (${_isLbs ? "lb" : "kg"})',
+                    hintText:
+                        _exercise?.isBodyweight ?? false ? 'opcional' : null,
                     border: const OutlineInputBorder()),
               ),
             ),
@@ -328,7 +339,7 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
             ),
           ),
           Text(
-            '${formatKg(s.weightKg)} kg × ${s.reps}',
+            formatSetLoad(s.weightKg, s.reps, isBodyweight: s.isBodyweight),
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: onContainer,

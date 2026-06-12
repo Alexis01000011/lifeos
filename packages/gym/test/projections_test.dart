@@ -217,6 +217,109 @@ void main() {
         ['calf raises', 'standing calf raise']);
   });
 
+  test('una serie corporal guarda weight_kg null y aporta solo su lastre '
+      'al volumen (ADR-0013)', () async {
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e1',
+        name: 'Plancha',
+        muscleGroup: MuscleGroup.abdomen,
+        modality: ExerciseModality.bodyweight));
+    await start.handle(StartWorkout('w1'));
+    await logSet.handle(LogSet(
+        workoutId: 'w1', exercise: 'Plancha', exerciseId: 'e1', reps: 12));
+    await logSet.handle(LogSet(
+        workoutId: 'w1',
+        exercise: 'Plancha',
+        exerciseId: 'e1',
+        weightKg: 5,
+        reps: 10));
+
+    final resumen = (await readModels.workoutHistory()).single;
+    expect(resumen.setCount, 2);
+    expect(resumen.totalVolumeKg, 50,
+        reason: 'solo el lastre cuenta como carga externa');
+
+    final series = await readModels.setsForWorkout('w1');
+    expect(series.first.weightKg, isNull);
+    expect(series.first.isBodyweight, isTrue,
+        reason: 'la modalidad llega por el join al catálogo');
+    expect(series.last.weightKg, 5);
+
+    final semana = (await readModels.weeklyVolume()).single;
+    expect(semana.totalVolumeKg, 50,
+        reason: 'el COALESCE evita que el null anule la suma');
+
+    final ultimo = await readModels.lastSetForExercise('e1');
+    expect(ultimo, isNotNull);
+    expect(ultimo!.weightKg, 5);
+  });
+
+  test('la modalidad se proyecta en el catálogo y el compensatorio la '
+      'corrige (ADR-0013)', () async {
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e1',
+        name: 'Abdominal curl',
+        muscleGroup: MuscleGroup.abdomen));
+    expect((await readModels.exercises()).single.modality, 'weighted');
+
+    await CorrectExerciseModalityHandler(exerciseCatalogRepository(store))
+        .handle(CorrectExerciseModality(
+            exerciseId: 'e1', newModality: ExerciseModality.bodyweight));
+    final corregido = (await readModels.exercises()).single;
+    expect(corregido.modality, 'bodyweight');
+    expect(corregido.isBodyweight, isTrue);
+  });
+
+  test('migración de forma (ADR-0013): la tabla de series con weight_kg '
+      'NOT NULL se tira y el checkpoint viejo se limpia', () async {
+    final legacyDb = TestDatabase();
+    addTearDown(legacyDb.close);
+    await createEventStoreSchema(legacyDb);
+    // La forma pre-ADR-0013, como existe hoy en el A71.
+    await legacyDb.customStatement('''
+      CREATE TABLE $gymSetsTable (
+        workout_id          TEXT    NOT NULL,
+        position            INTEGER NOT NULL,
+        exercise            TEXT    NOT NULL,
+        weight_kg           REAL    NOT NULL,
+        reps                INTEGER NOT NULL,
+        rest_before_seconds INTEGER,
+        week_start          TEXT    NOT NULL,
+        is_late             INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (workout_id, position)
+      )
+    ''');
+    await legacyDb.customStatement(
+        "INSERT INTO $gymSetsTable VALUES ('w1', 1, 'x', 80, 10, NULL, '2026-06-08', 0)");
+    await legacyDb.customStatement(
+        "INSERT INTO projection_checkpoints VALUES ('gym.workout_sets', 30)");
+
+    await createGymReadModelSchema(legacyDb);
+
+    final notNull = await legacyDb
+        .customSelect("SELECT 1 FROM pragma_table_info('$gymSetsTable') "
+            "WHERE name = 'weight_kg' AND \"notnull\" = 1")
+        .get();
+    expect(notNull, isEmpty, reason: 'la columna quedó nullable');
+    final filas =
+        await legacyDb.customSelect('SELECT * FROM $gymSetsTable').get();
+    expect(filas, isEmpty,
+        reason: 'la tabla renació vacía: el catch-up la backfillea');
+    final checkpoints = await legacyDb
+        .customSelect('SELECT * FROM projection_checkpoints')
+        .get();
+    expect(checkpoints, isEmpty, reason: 'el checkpoint viejo se limpió');
+
+    // Idempotencia: una segunda pasada no vuelve a tirar nada.
+    await legacyDb.customStatement(
+        "INSERT INTO $gymSetsTable (workout_id, position, exercise, weight_kg, reps, week_start) "
+        "VALUES ('w1', 1, 'Plancha', NULL, 12, '2026-06-08')");
+    await createGymReadModelSchema(legacyDb);
+    expect(
+        await legacyDb.customSelect('SELECT * FROM $gymSetsTable').get(),
+        hasLength(1));
+  });
+
   test('PRUEBA ÁCIDA: reset de proyecciones + replay = estado idéntico',
       () async {
     await entrenoDePierna('w1');
@@ -238,6 +341,18 @@ void main() {
         legacyNames: ['Calves']));
     await renameExercise.handle(
         RenameExercise(exerciseId: 'e1', newName: 'Standing calf raise'));
+    // Historia bodyweight incluida (ADR-0013): alta corporal, serie sin
+    // carga externa y corrección de modalidad.
+    await addExercise.handle(AddExercise(
+        exerciseId: 'e2',
+        name: 'Plancha',
+        muscleGroup: MuscleGroup.abdomen,
+        modality: ExerciseModality.bodyweight));
+    await logSet.handle(LogSet(
+        workoutId: 'w3', exercise: 'Plancha', exerciseId: 'e2', reps: 12));
+    await CorrectExerciseModalityHandler(exerciseCatalogRepository(store))
+        .handle(CorrectExerciseModality(
+            exerciseId: 'e1', newModality: ExerciseModality.weighted));
 
     Future<List<Map<String, Object?>>> snapshot(String table) async {
       final rows =
