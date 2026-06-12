@@ -55,9 +55,11 @@ class ExercisesScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 88),
       children: [
+        // Colapsados por default (feedback de uso real 2026-06-11): la
+        // pantalla se navega por grupos, no deslizando la lista entera.
         for (final entry in byGroup.entries)
           ExpansionTile(
-            initiallyExpanded: true,
+            initiallyExpanded: false,
             title: Text(
               muscleGroupLabel(entry.key),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(

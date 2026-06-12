@@ -41,7 +41,7 @@ colors:
 
   # ─── Texto ────────────────────────────────────────────────────────────────
   text:              "#E6EDF3"   # cuerpo principal — no blanco puro (reduce fatiga OLED)
-  text-muted:        "#8B949E"   # metadatos, labels secundarios — 4.7:1 ✅ AA
+  text-muted:        "#9DA7B3"   # metadatos, labels secundarios — 7.7:1 sobre bg, 6.2:1 sobre surface-raised ✅ AA
   text-subtle:       "#484F58"   # placeholders, texto deshabilitado
   on-surface:        "#E6EDF3"   # alias de text para Material ColorScheme
 
@@ -173,7 +173,7 @@ Esto se traduce en cinco decisiones estéticas no negociables:
 | `primary-dim` | `#1EA896` | 4.8:1 ✅ AA | Estado pressed del primario |
 | `secondary` | `#F8A051` | 5.4:1 ✅ AA | PR del gym, racha de días, tendencia positiva |
 | `text` | `#E6EDF3` | 13.5:1 ✅ AAA | Cuerpo, cifras |
-| `text-muted` | `#8B949E` | 4.7:1 ✅ AA | Labels secundarios, unidades, metadatos |
+| `text-muted` | `#9DA7B3` | 7.7:1 ✅ AAA | Labels secundarios, unidades, metadatos |
 | `text-subtle` | `#484F58` | 2.3:1 ❌ | **Solo** placeholders y texto deshabilitado (nunca contenido real) |
 | `success` | `#3FB950` | 5.2:1 ✅ AA | Registro exitoso, tendencia positiva |
 | `error` | `#F85149` | 5.0:1 ✅ AA | Errores, excepciones, dato crítico |
@@ -726,4 +726,5 @@ Formato: `[ID] severidad — enunciado`. Aplicar en toda revisión de código Fl
 
 ## Changelog
 
+- **2026-06-11 — alpha.1:** `text-muted` aclarado `#8B949E` → `#9DA7B3`. El valor anterior pasaba AA numéricamente (4.9:1 sobre surface-raised) pero a 11sp en los labels y helpers de formularios se percibía lavado en el A71 (feedback de uso real). El nuevo da 6.2:1 sobre surface-raised y 7.7:1 sobre bg sin romper la jerarquía frente a `text`.
 - **2026-06-11 — alpha:** Versión inicial. Paleta oscura + teal eléctrico (instrumento de precisión). DM Sans + DM Mono. Componentes hub, gym, days, sleep, affect. Reglas verificables con IDs. Diseñado para Samsung A71 (AMOLED, 393dp), local-first, dark-first.

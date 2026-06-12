@@ -207,10 +207,12 @@ void main() {
     expect(find.byKey(const Key('registrar')), findsOneWidget,
         reason: 'el workout sigue en curso: el evento nunca se persistió');
 
-    // reps = 0 viola la invariante de la serie: el contador sigue en 0.
+    // reps = 0 viola la invariante de la serie: el contador sigue en 0 y
+    // el campo conserva el valor rechazado para corregirlo sin reteclear.
     await registrarSerie(tester, ejercicio: 'press banca', peso: '60', reps: '0');
-    expect(find.text('0'), findsOneWidget,
-        reason: 'el contador de series no se movió');
+    expect(find.text('0'), findsNWidgets(2),
+        reason: 'el contador de series no se movió y el campo de reps '
+            'retiene el "0" rechazado');
     expect(find.byType(SnackBar), findsWidgets);
   });
 
@@ -254,8 +256,12 @@ void main() {
     await tester.tap(find.byKey(const Key('confirmar-ejercicio')));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(ListTile, 'Calf raises'), findsOneWidget);
+    // Los grupos arrancan colapsados: el ejercicio aparece al expandir.
     expect(find.text('pierna'), findsOneWidget, reason: 'header del grupo');
+    expect(find.widgetWithText(ListTile, 'Calf raises'), findsNothing);
+    await tester.tap(find.text('pierna'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'Calf raises'), findsOneWidget);
 
     // La invariante de unicidad cruza desde el agregado como SnackBar
     // ("Calves" ya pertenece a Calf raises como nombre histórico).

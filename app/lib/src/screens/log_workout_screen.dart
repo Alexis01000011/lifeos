@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gym/gym.dart';
 import 'package:uuid/uuid.dart';
@@ -36,19 +37,22 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
 
   /// Despacho con manejo uniforme de errores: los rechazos del dominio se
   /// muestran tal cual (sus mensajes ya son para humanos, ADR-0005).
-  Future<void> _dispatch(Future<void> Function() command) async {
+  /// Devuelve si el comando se persistió, para feedback condicional.
+  Future<bool> _dispatch(Future<void> Function() command) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await command();
+      return true;
     } on DomainException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } on ConcurrencyException {
       messenger.showSnackBar(const SnackBar(
           content: Text('Conflicto de escritura, intenta de nuevo.')));
     }
+    return false;
   }
 
-  void _logSet(String workoutId) {
+  Future<void> _logSet(String workoutId) async {
     final exercise = _exercise;
     if (exercise == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,7 +72,7 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           const SnackBar(content: Text('Peso y reps deben ser números.')));
       return;
     }
-    _dispatch(() => ref.read(logSetProvider).handle(LogSet(
+    final ok = await _dispatch(() => ref.read(logSetProvider).handle(LogSet(
           workoutId: workoutId,
           exercise: exercise.name,
           exerciseId: exercise.exerciseId,
@@ -76,6 +80,8 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           reps: reps,
           restBeforeSeconds: rest,
         )));
+    if (!ok) return; // si el dominio rechazó, los campos quedan para corregir
+    HapticFeedback.mediumImpact();
     _reps.clear();
     _restSeconds.clear();
   }
@@ -272,9 +278,16 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
                   onDismissed: (_) => _dispatch(() => ref
                       .read(removeLastSetProvider)
                       .handle(RemoveLastSet(workoutId))),
-                  child: _setRow(context, recent[i], theme, onContainer,
-                      onTap: () => showSetCorrectionSheet(
-                          context, ref, workoutId, recent[i])),
+                  child: _FlashOnChange(
+                    // La key incluye los datos: re-destella también cuando
+                    // la serie se corrige, no solo cuando aparece una nueva.
+                    key: ValueKey('flash-${recent[i].position}-'
+                        '${recent[i].weightKg}-${recent[i].reps}'),
+                    highlight: onContainer,
+                    child: _setRow(context, recent[i], theme, onContainer,
+                        onTap: () => showSetCorrectionSheet(
+                            context, ref, workoutId, recent[i])),
+                  ),
                 )
               else
                 _setRow(context, recent[i], theme, onContainer,
@@ -363,6 +376,34 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis),
       ],
+    );
+  }
+}
+
+/// Destello de confirmación sobre la serie recién escrita: un realce
+/// neutro que se desvanece (DESIGN.md motion.slow, 420 ms). Feedback de
+/// estado, no celebración [DATA-002]: confirma de reojo que el registro
+/// entró sin apartar la vista del entreno.
+class _FlashOnChange extends StatelessWidget {
+  final Color highlight;
+  final Widget child;
+
+  const _FlashOnChange(
+      {super.key, required this.highlight, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 70, end: 0),
+      duration: const Duration(milliseconds: 420),
+      builder: (context, alpha, child) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: highlight.withAlpha(alpha.round()),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: child,
+      ),
+      child: child,
     );
   }
 }
