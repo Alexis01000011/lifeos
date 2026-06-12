@@ -112,6 +112,42 @@ class WorkoutDiscarded implements DomainEvent {
       WorkoutDiscarded(wasCompleted: json['wasCompleted'] as bool? ?? false);
 }
 
+/// Eliminación de la última serie de un workout en curso (swipe en la UI).
+/// Solo válido antes de completar. Lleva el payload de la serie eliminada
+/// para que los projectors puedan restar el volumen sin releer la tabla.
+class SetRemoved implements DomainEvent {
+  static const type = 'gym.set_removed';
+
+  final int position;
+  final double weightKg;
+  final int reps;
+
+  SetRemoved({
+    required this.position,
+    required this.weightKg,
+    required this.reps,
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'position': position,
+        'weightKg': weightKg,
+        'reps': reps,
+      };
+
+  static SetRemoved fromJson(Map<String, dynamic> json) => SetRemoved(
+        position: json['position'] as int,
+        weightKg: (json['weightKg'] as num).toDouble(),
+        reps: json['reps'] as int,
+      );
+}
+
 /// Compensatorio (ADR-0010): una serie que se hizo pero no se registró,
 /// agregada después de completar el workout. Distinto de [SetLogged] a
 /// propósito: los projectors la bucketizan por la semana del WORKOUT, no
@@ -253,14 +289,50 @@ class ExerciseRenamed implements DomainEvent {
       );
 }
 
+/// Corrección del grupo muscular de un ejercicio existente. El grupo
+/// incorrecto queda en la historia; el projector aplica el correcto encima.
+class ExerciseMuscleGroupCorrected implements DomainEvent {
+  static const type = 'gym.exercise_muscle_group_corrected';
+
+  final String exerciseId;
+  final MuscleGroup newMuscleGroup;
+
+  ExerciseMuscleGroupCorrected({
+    required this.exerciseId,
+    required this.newMuscleGroup,
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'exerciseId': exerciseId,
+        'newMuscleGroup': newMuscleGroup.name,
+      };
+
+  static ExerciseMuscleGroupCorrected fromJson(Map<String, dynamic> json) =>
+      ExerciseMuscleGroupCorrected(
+        exerciseId: json['exerciseId'] as String,
+        newMuscleGroup:
+            MuscleGroup.values.byName(json['newMuscleGroup'] as String),
+      );
+}
+
 /// Registra los deserializadores del módulo. La app shell lo llama al
 /// componer el registry global de domain events.
 void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
   registry.register(WorkoutStarted.type, 1, WorkoutStarted.fromJson);
   registry.register(SetLogged.type, 1, SetLogged.fromJson);
+  registry.register(SetRemoved.type, 1, SetRemoved.fromJson);
   registry.register(WorkoutCompleted.type, 1, WorkoutCompleted.fromJson);
   registry.register(WorkoutDiscarded.type, 1, WorkoutDiscarded.fromJson);
   registry.register(SetLoggedLate.type, 1, SetLoggedLate.fromJson);
   registry.register(ExerciseAdded.type, 1, ExerciseAdded.fromJson);
   registry.register(ExerciseRenamed.type, 1, ExerciseRenamed.fromJson);
+  registry.register(ExerciseMuscleGroupCorrected.type, 1,
+      ExerciseMuscleGroupCorrected.fromJson);
 }

@@ -27,6 +27,7 @@ class WorkoutHistoryProjector implements Projector {
   Set<String> get handledEventTypes => {
         WorkoutStarted.type,
         SetLogged.type,
+        SetRemoved.type,
         WorkoutCompleted.type,
         WorkoutDiscarded.type,
         SetLoggedLate.type,
@@ -48,6 +49,14 @@ class WorkoutHistoryProjector implements Projector {
           'UPDATE $workoutHistoryTable '
           'SET set_count = set_count + 1, '
           '    total_volume_kg = total_volume_kg + ? '
+          'WHERE workout_id = ?',
+          [weightKg * reps, workoutId],
+        );
+      case SetRemoved(:final weightKg, :final reps):
+        await _db.customStatement(
+          'UPDATE $workoutHistoryTable '
+          'SET set_count = set_count - 1, '
+          '    total_volume_kg = total_volume_kg - ? '
           'WHERE workout_id = ?',
           [weightKg * reps, workoutId],
         );
@@ -88,7 +97,7 @@ class WorkoutSetsProjector implements Projector {
 
   @override
   Set<String> get handledEventTypes =>
-      {SetLogged.type, SetLoggedLate.type, WorkoutDiscarded.type};
+      {SetLogged.type, SetRemoved.type, SetLoggedLate.type, WorkoutDiscarded.type};
 
   @override
   FutureOr<void> project(EventEnvelope envelope) async {
@@ -109,6 +118,11 @@ class WorkoutSetsProjector implements Projector {
             restBeforeSeconds,
             isoWeekStartUtc(envelope.occurredAt),
           ],
+        );
+      case SetRemoved(:final position):
+        await _db.customStatement(
+          'DELETE FROM $gymSetsTable WHERE workout_id = ? AND position = ?',
+          [workoutId, position],
         );
       case SetLoggedLate(:final exercise, :final weightKg, :final reps, :final restBeforeSeconds):
         // La semana es la del WORKOUT, no la de la corrección: se hereda de
@@ -152,8 +166,11 @@ class ExerciseCatalogProjector implements Projector {
   String get name => 'gym.exercises';
 
   @override
-  Set<String> get handledEventTypes =>
-      {ExerciseAdded.type, ExerciseRenamed.type};
+  Set<String> get handledEventTypes => {
+        ExerciseAdded.type,
+        ExerciseRenamed.type,
+        ExerciseMuscleGroupCorrected.type,
+      };
 
   @override
   FutureOr<void> project(EventEnvelope envelope) async {
@@ -187,6 +204,11 @@ class ExerciseCatalogProjector implements Projector {
           'INSERT OR IGNORE INTO $gymExerciseNamesTable '
           '(name_normalized, exercise_id) VALUES (?, ?)',
           [normalizeExerciseName(newName), exerciseId],
+        );
+      case ExerciseMuscleGroupCorrected(:final exerciseId, :final newMuscleGroup):
+        await _db.customStatement(
+          'UPDATE $gymExercisesTable SET muscle_group = ? WHERE exercise_id = ?',
+          [newMuscleGroup.name, exerciseId],
         );
     }
     _db.notifyUpdates(

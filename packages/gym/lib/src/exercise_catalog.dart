@@ -92,6 +92,19 @@ class ExerciseCatalog extends AggregateRoot {
     raise(ExerciseRenamed(exerciseId: exerciseId, newName: cleanName));
   }
 
+  void correctMuscleGroup({
+    required String exerciseId,
+    required MuscleGroup newMuscleGroup,
+  }) {
+    if (!hasExercise(exerciseId)) {
+      throw DomainException('Ese ejercicio no existe en el catálogo.');
+    }
+    raise(ExerciseMuscleGroupCorrected(
+      exerciseId: exerciseId,
+      newMuscleGroup: newMuscleGroup,
+    ));
+  }
+
   @override
   void apply(DomainEvent event) {
     switch (event) {
@@ -108,6 +121,10 @@ class ExerciseCatalog extends AggregateRoot {
         // El nombre viejo NO se libera: sigue resolviendo series viejas.
         _currentNameById[exerciseId] = newName;
         _ownerByClaimedName[normalizeExerciseName(newName)] = exerciseId;
+      case ExerciseMuscleGroupCorrected():
+        // El grupo muscular no forma parte de los invariantes (la unicidad
+        // es por nombre); no hay estado interno que actualizar.
+        break;
       default:
         throw StateError('Evento ajeno al catálogo: ${event.eventType}');
     }

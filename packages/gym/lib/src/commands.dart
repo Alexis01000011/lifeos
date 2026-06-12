@@ -59,6 +59,11 @@ class AddMissedSet implements Command {
   });
 }
 
+class RemoveLastSet implements Command {
+  final String workoutId;
+  RemoveLastSet(this.workoutId);
+}
+
 class AddExercise implements Command {
   final String exerciseId;
   final String name;
@@ -78,6 +83,16 @@ class RenameExercise implements Command {
   final String newName;
 
   RenameExercise({required this.exerciseId, required this.newName});
+}
+
+class CorrectExerciseMuscleGroup implements Command {
+  final String exerciseId;
+  final MuscleGroup newMuscleGroup;
+
+  CorrectExerciseMuscleGroup({
+    required this.exerciseId,
+    required this.newMuscleGroup,
+  });
 }
 
 class StartWorkoutHandler implements CommandHandler<StartWorkout> {
@@ -155,6 +170,18 @@ class AddMissedSetHandler implements CommandHandler<AddMissedSet> {
   }
 }
 
+class RemoveLastSetHandler implements CommandHandler<RemoveLastSet> {
+  final AggregateRepository<Workout> _workouts;
+  RemoveLastSetHandler(this._workouts);
+
+  @override
+  Future<void> handle(RemoveLastSet command) async {
+    final workout = await _load(_workouts, command.workoutId);
+    workout.removeLastSet();
+    await _workouts.save(workout);
+  }
+}
+
 /// El primer alta crea el agregado singleton (load-or-create): el catálogo
 /// no tiene un "comando de creación" propio — existe desde que tiene algo.
 class AddExerciseHandler implements CommandHandler<AddExercise> {
@@ -188,6 +215,25 @@ class RenameExerciseHandler implements CommandHandler<RenameExercise> {
     catalog.renameExercise(
       exerciseId: command.exerciseId,
       newName: command.newName,
+    );
+    await _catalogs.save(catalog);
+  }
+}
+
+class CorrectExerciseMuscleGroupHandler
+    implements CommandHandler<CorrectExerciseMuscleGroup> {
+  final AggregateRepository<ExerciseCatalog> _catalogs;
+  CorrectExerciseMuscleGroupHandler(this._catalogs);
+
+  @override
+  Future<void> handle(CorrectExerciseMuscleGroup command) async {
+    final catalog = await _catalogs.load(ExerciseCatalog.singletonId);
+    if (catalog == null) {
+      throw DomainException('El catálogo está vacío.');
+    }
+    catalog.correctMuscleGroup(
+      exerciseId: command.exerciseId,
+      newMuscleGroup: command.newMuscleGroup,
     );
     await _catalogs.save(catalog);
   }

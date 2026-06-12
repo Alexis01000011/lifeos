@@ -21,6 +21,13 @@ class Workout extends AggregateRoot {
   bool _discarded = false;
   int _setCount = 0;
 
+  // Datos de la última serie: necesarios para emitir SetRemoved autocontenido.
+  // Se limpian tras cada remoción; sin ellos no se puede volver a remover
+  // hasta loggear una nueva serie.
+  int? _lastSetPosition;
+  double? _lastSetWeightKg;
+  int? _lastSetReps;
+
   bool get isCompleted => _completed;
   bool get isDiscarded => _discarded;
   int get setCount => _setCount;
@@ -81,6 +88,26 @@ class Workout extends AggregateRoot {
     raise(WorkoutDiscarded(wasCompleted: _completed));
   }
 
+  /// Elimina la última serie del workout en curso (swipe en la UI).
+  /// Solo válido antes de completar; solo elimina la última (posición más
+  /// alta). Loggear otra serie rehabilita la capacidad de eliminar.
+  void removeLastSet() {
+    _ensureStarted();
+    _ensureNotDiscarded();
+    if (_completed) {
+      throw DomainException(
+          'El workout ya está completado; usa "serie olvidada" para ajustar.');
+    }
+    if (_setCount == 0 || _lastSetPosition == null) {
+      throw DomainException('No hay series que eliminar.');
+    }
+    raise(SetRemoved(
+      position: _lastSetPosition!,
+      weightKg: _lastSetWeightKg!,
+      reps: _lastSetReps!,
+    ));
+  }
+
   /// Compensatorio (ADR-0010): serie hecha pero no registrada, agregada a
   /// un workout YA completado. Sobre uno en curso se usa [logSet]: acá la
   /// restricción a completados es lo que mantiene honesta la invariante
@@ -96,7 +123,7 @@ class Workout extends AggregateRoot {
     _ensureNotDiscarded();
     if (!_completed) {
       throw DomainException(
-          'El workout sigue en curso: registrá la serie normalmente.');
+          'El workout sigue en curso: registra la serie normalmente.');
     }
     _validateSet(exercise, weightKg, reps, restBeforeSeconds);
     raise(SetLoggedLate(
@@ -141,14 +168,27 @@ class Workout extends AggregateRoot {
     switch (event) {
       case WorkoutStarted():
         _started = true;
-      case SetLogged():
+      case SetLogged(:final weightKg, :final reps):
         _setCount++;
+        _lastSetPosition = _setCount;
+        _lastSetWeightKg = weightKg;
+        _lastSetReps = reps;
+      case SetRemoved():
+        _setCount--;
+        // Limpiamos: sin saber el peso/reps del nuevo "último" no se puede
+        // volver a eliminar hasta que se loggee una serie nueva.
+        _lastSetPosition = null;
+        _lastSetWeightKg = null;
+        _lastSetReps = null;
       case WorkoutCompleted():
         _completed = true;
       case WorkoutDiscarded():
         _discarded = true;
-      case SetLoggedLate():
+      case SetLoggedLate(:final weightKg, :final reps):
         _setCount++;
+        _lastSetPosition = _setCount;
+        _lastSetWeightKg = weightKg;
+        _lastSetReps = reps;
       default:
         throw StateError('Evento ajeno al Workout: ${event.eventType}');
     }

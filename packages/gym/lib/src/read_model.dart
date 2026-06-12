@@ -102,6 +102,26 @@ class ExerciseSummary {
   });
 }
 
+/// Una serie de un entreno, para el mini-registro en vivo y el detalle de
+/// un entreno pasado.
+class SetSummary {
+  final int position;
+  final String exercise;
+  final double weightKg;
+  final int reps;
+  final int? restBeforeSeconds;
+  final bool isLate;
+
+  SetSummary({
+    required this.position,
+    required this.exercise,
+    required this.weightKg,
+    required this.reps,
+    required this.restBeforeSeconds,
+    required this.isLate,
+  });
+}
+
 /// API de consulta del módulo. La UI (Fase 3) la envuelve en providers;
 /// la reactividad se arma con tableUpdates sobre los nombres de tabla.
 class GymReadModels {
@@ -168,6 +188,75 @@ class GymReadModels {
         WeeklyVolume(
           weekStart: row.read<String>('week_start'),
           totalVolumeKg: row.read<double>('total_volume_kg'),
+        ),
+    ];
+  }
+
+  /// Último peso y reps del ejercicio dado (por ejerciseId). Usa el mapa de
+  /// nombres para cubrir series registradas bajo nombres históricos o legacy.
+  /// Devuelve null si el ejercicio nunca fue registrado.
+  Future<({double weightKg, int reps})?> lastSetForExercise(
+      String exerciseId) async {
+    final rows = await _db.customSelect(
+      'SELECT gs.weight_kg, gs.reps '
+      'FROM $gymSetsTable gs '
+      'INNER JOIN $gymExerciseNamesTable gen '
+      '  ON gen.name_normalized = lower(trim(gs.exercise)) '
+      'INNER JOIN $workoutHistoryTable gwh '
+      '  ON gwh.workout_id = gs.workout_id '
+      'WHERE gen.exercise_id = ? '
+      'ORDER BY gwh.started_at DESC, gs.position DESC '
+      'LIMIT 1',
+      variables: [Variable.withString(exerciseId)],
+    ).get();
+    if (rows.isEmpty) return null;
+    return (
+      weightKg: rows.first.read<double>('weight_kg'),
+      reps: rows.first.read<int>('reps'),
+    );
+  }
+
+  /// Top N ejercicios por número de series registradas. Alimenta la sección
+  /// "Frecuentes" del picker. Devuelve lista vacía si no hay series aún.
+  Future<List<ExerciseSummary>> exercisesByFrequency({int limit = 5}) async {
+    final rows = await _db.customSelect(
+      'SELECT e.exercise_id, e.name, e.muscle_group, COUNT(*) AS use_count '
+      'FROM $gymSetsTable gs '
+      'INNER JOIN $gymExerciseNamesTable gen '
+      '  ON gen.name_normalized = lower(trim(gs.exercise)) '
+      'INNER JOIN $gymExercisesTable e '
+      '  ON e.exercise_id = gen.exercise_id '
+      'GROUP BY e.exercise_id, e.name, e.muscle_group '
+      'ORDER BY use_count DESC '
+      'LIMIT ?',
+      variables: [Variable.withInt(limit)],
+    ).get();
+    return [
+      for (final row in rows)
+        ExerciseSummary(
+          exerciseId: row.read<String>('exercise_id'),
+          name: row.read<String>('name'),
+          muscleGroup: row.read<String>('muscle_group'),
+        ),
+    ];
+  }
+
+  Future<List<SetSummary>> setsForWorkout(String workoutId) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT * FROM $gymSetsTable WHERE workout_id = ? ORDER BY position',
+          variables: [Variable.withString(workoutId)],
+        )
+        .get();
+    return [
+      for (final row in rows)
+        SetSummary(
+          position: row.read<int>('position'),
+          exercise: row.read<String>('exercise'),
+          weightKg: row.read<double>('weight_kg'),
+          reps: row.read<int>('reps'),
+          restBeforeSeconds: row.readNullable<int>('rest_before_seconds'),
+          isLate: row.read<int>('is_late') != 0,
         ),
     ];
   }
