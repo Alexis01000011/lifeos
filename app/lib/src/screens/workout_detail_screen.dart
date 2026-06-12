@@ -1,3 +1,4 @@
+import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gym/gym.dart';
@@ -45,7 +46,8 @@ class WorkoutDetailScreen extends ConsumerWidget {
                       color: Theme.of(context).colorScheme.outlineVariant,
                     );
             },
-            itemBuilder: (context, i) => _setTile(context, value[i]),
+            itemBuilder: (context, i) =>
+                _setTile(context, ref, value[i], workout.workoutId),
           ),
         AsyncError(:final error) => Center(child: Text('Error: $error')),
         _ => const Center(child: CircularProgressIndicator()),
@@ -53,7 +55,8 @@ class WorkoutDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _setTile(BuildContext context, SetSummary set) {
+  Widget _setTile(
+      BuildContext context, WidgetRef ref, SetSummary set, String workoutId) {
     final theme = Theme.of(context);
     return ListTile(
       leading: SizedBox(
@@ -84,6 +87,100 @@ class WorkoutDetailScreen extends ConsumerWidget {
         '${formatKg(set.weightKg)} kg × ${set.reps}',
         style: theme.textTheme.titleSmall,
       ),
+      onTap: () => showSetCorrectionSheet(context, ref, workoutId, set),
     );
   }
+}
+
+/// Bottom sheet de corrección de serie. Reutilizable desde LogWorkoutScreen.
+Future<void> showSetCorrectionSheet(
+  BuildContext context,
+  WidgetRef ref,
+  String workoutId,
+  SetSummary set,
+) async {
+  final weightCtrl =
+      TextEditingController(text: formatKg(set.weightKg));
+  final repsCtrl = TextEditingController(text: set.reps.toString());
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetCtx) => Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 24, 24, MediaQuery.viewInsetsOf(sheetCtx).bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Corregir serie #${set.position} — ${set.exercise}',
+            style: Theme.of(sheetCtx).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: weightCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Peso (kg)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: repsCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Reps',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48)),
+            onPressed: () async {
+              final weightKg = double.tryParse(
+                  weightCtrl.text.replaceAll(',', '.'));
+              final reps = int.tryParse(repsCtrl.text);
+              if (weightKg == null || reps == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Peso y reps deben ser números.')));
+                return;
+              }
+              Navigator.of(sheetCtx).pop();
+              try {
+                await ref.read(correctSetProvider).handle(CorrectSet(
+                      workoutId: workoutId,
+                      position: set.position,
+                      weightKg: weightKg,
+                      reps: reps,
+                    ));
+              } on DomainException catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.message)));
+                }
+              }
+            },
+            child: const Text('Guardar corrección'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  weightCtrl.dispose();
+  repsCtrl.dispose();
 }

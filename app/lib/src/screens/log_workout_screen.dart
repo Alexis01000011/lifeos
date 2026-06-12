@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../format.dart';
 import '../providers.dart';
 import '../widgets/exercise_picker.dart';
+import 'workout_detail_screen.dart' show showSetCorrectionSheet;
 
 /// Pantalla de loggeo. UI delgada (ADR-0002): lee el workout en curso de
 /// una proyección y despacha comandos; ninguna regla de negocio vive acá
@@ -268,10 +269,14 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
                   onDismissed: (_) => _dispatch(() => ref
                       .read(removeLastSetProvider)
                       .handle(RemoveLastSet(workoutId))),
-                  child: _setRow(context, recent[i], theme, onContainer),
+                  child: _setRow(context, recent[i], theme, onContainer,
+                      onTap: () => showSetCorrectionSheet(
+                          context, ref, workoutId, recent[i])),
                 )
               else
-                _setRow(context, recent[i], theme, onContainer),
+                _setRow(context, recent[i], theme, onContainer,
+                    onTap: () => showSetCorrectionSheet(
+                        context, ref, workoutId, recent[i])),
             ],
           ],
         ),
@@ -280,8 +285,11 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
   }
 
   Widget _setRow(BuildContext context, SetSummary s, ThemeData theme,
-      Color onContainer) {
-    return Padding(
+      Color onContainer, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
@@ -311,6 +319,7 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

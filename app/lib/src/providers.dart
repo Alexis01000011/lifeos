@@ -104,6 +104,9 @@ final addMissedSetProvider = Provider<AddMissedSetHandler>(
 final removeLastSetProvider = Provider<RemoveLastSetHandler>(
   (ref) => RemoveLastSetHandler(ref.watch(_workoutsProvider)),
 );
+final correctSetProvider = Provider<CorrectSetHandler>(
+  (ref) => CorrectSetHandler(ref.watch(_workoutsProvider)),
+);
 
 final _exerciseCatalogProvider =
     Provider<AggregateRepository<ExerciseCatalog>>(
