@@ -21,12 +21,10 @@ class Workout extends AggregateRoot {
   bool _discarded = false;
   int _setCount = 0;
 
-  // Datos de la última serie: necesarios para emitir SetRemoved autocontenido.
-  // Se limpian tras cada remoción; sin ellos no se puede volver a remover
-  // hasta loggear una nueva serie.
-  int? _lastSetPosition;
-  double? _lastSetWeightKg;
-  int? _lastSetReps;
+  // Estado write-side: peso y reps de cada serie viva, indexado por posición.
+  // Permite emitir SetRemoved y SetCorrected autocontenidos sin consultar
+  // proyecciones (ADR-0012).
+  final Map<int, ({double weightKg, int reps})> _sets = {};
 
   bool get isCompleted => _completed;
   bool get isDiscarded => _discarded;
@@ -98,13 +96,36 @@ class Workout extends AggregateRoot {
       throw DomainException(
           'El workout ya está completado; usa "serie olvidada" para ajustar.');
     }
-    if (_setCount == 0 || _lastSetPosition == null) {
+    final last = _sets[_setCount];
+    if (last == null) {
       throw DomainException('No hay series que eliminar.');
     }
     raise(SetRemoved(
-      position: _lastSetPosition!,
-      weightKg: _lastSetWeightKg!,
-      reps: _lastSetReps!,
+        position: _setCount, weightKg: last.weightKg, reps: last.reps));
+  }
+
+  /// Corrige peso o reps de una serie existente (ADR-0012). Válido tanto
+  /// en curso como en completados; no modifica el ejercicio ni el descanso.
+  void correctSet({
+    required int position,
+    required double weightKg,
+    required int reps,
+  }) {
+    _ensureStarted();
+    _ensureNotDiscarded();
+    final existing = _sets[position];
+    if (existing == null) {
+      throw DomainException('No existe una serie en la posición $position.');
+    }
+    if (reps < 1) throw DomainException('Una serie tiene al menos 1 repetición.');
+    if (weightKg < 0) throw DomainException('El peso no puede ser negativo.');
+    if (weightKg == existing.weightKg && reps == existing.reps) return;
+    raise(SetCorrected(
+      position: position,
+      oldWeightKg: existing.weightKg,
+      oldReps: existing.reps,
+      weightKg: weightKg,
+      reps: reps,
     ));
   }
 
@@ -170,25 +191,19 @@ class Workout extends AggregateRoot {
         _started = true;
       case SetLogged(:final weightKg, :final reps):
         _setCount++;
-        _lastSetPosition = _setCount;
-        _lastSetWeightKg = weightKg;
-        _lastSetReps = reps;
-      case SetRemoved():
+        _sets[_setCount] = (weightKg: weightKg, reps: reps);
+      case SetRemoved(:final position):
+        _sets.remove(position);
         _setCount--;
-        // Limpiamos: sin saber el peso/reps del nuevo "último" no se puede
-        // volver a eliminar hasta que se loggee una serie nueva.
-        _lastSetPosition = null;
-        _lastSetWeightKg = null;
-        _lastSetReps = null;
+      case SetCorrected(:final position, :final weightKg, :final reps):
+        _sets[position] = (weightKg: weightKg, reps: reps);
       case WorkoutCompleted():
         _completed = true;
       case WorkoutDiscarded():
         _discarded = true;
       case SetLoggedLate(:final weightKg, :final reps):
         _setCount++;
-        _lastSetPosition = _setCount;
-        _lastSetWeightKg = weightKg;
-        _lastSetReps = reps;
+        _sets[_setCount] = (weightKg: weightKg, reps: reps);
       default:
         throw StateError('Evento ajeno al Workout: ${event.eventType}');
     }

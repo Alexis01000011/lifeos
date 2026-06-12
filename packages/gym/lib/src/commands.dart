@@ -64,6 +64,20 @@ class RemoveLastSet implements Command {
   RemoveLastSet(this.workoutId);
 }
 
+class CorrectSet implements Command {
+  final String workoutId;
+  final int position;
+  final double weightKg;
+  final int reps;
+
+  CorrectSet({
+    required this.workoutId,
+    required this.position,
+    required this.weightKg,
+    required this.reps,
+  });
+}
+
 class AddExercise implements Command {
   final String exerciseId;
   final String name;
@@ -178,6 +192,22 @@ class RemoveLastSetHandler implements CommandHandler<RemoveLastSet> {
   Future<void> handle(RemoveLastSet command) async {
     final workout = await _load(_workouts, command.workoutId);
     workout.removeLastSet();
+    await _workouts.save(workout);
+  }
+}
+
+class CorrectSetHandler implements CommandHandler<CorrectSet> {
+  final AggregateRepository<Workout> _workouts;
+  CorrectSetHandler(this._workouts);
+
+  @override
+  Future<void> handle(CorrectSet command) async {
+    final workout = await _load(_workouts, command.workoutId);
+    workout.correctSet(
+      position: command.position,
+      weightKg: command.weightKg,
+      reps: command.reps,
+    );
     await _workouts.save(workout);
   }
 }

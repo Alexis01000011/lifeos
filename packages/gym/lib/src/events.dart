@@ -289,6 +289,51 @@ class ExerciseRenamed implements DomainEvent {
       );
 }
 
+/// Corrección de peso o reps de una serie (ADR-0012). Lleva los valores
+/// anteriores para que el projector calcule el delta de volumen sin releer
+/// la tabla. La identidad es (workoutId, position): inmutable porque
+/// RemoveLastSet solo toca la última serie.
+class SetCorrected implements DomainEvent {
+  static const type = 'gym.set_corrected';
+
+  final int position;
+  final double oldWeightKg;
+  final int oldReps;
+  final double weightKg;
+  final int reps;
+
+  SetCorrected({
+    required this.position,
+    required this.oldWeightKg,
+    required this.oldReps,
+    required this.weightKg,
+    required this.reps,
+  });
+
+  @override
+  String get eventType => type;
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'position': position,
+        'oldWeightKg': oldWeightKg,
+        'oldReps': oldReps,
+        'weightKg': weightKg,
+        'reps': reps,
+      };
+
+  static SetCorrected fromJson(Map<String, dynamic> json) => SetCorrected(
+        position: json['position'] as int,
+        oldWeightKg: (json['oldWeightKg'] as num).toDouble(),
+        oldReps: json['oldReps'] as int,
+        weightKg: (json['weightKg'] as num).toDouble(),
+        reps: json['reps'] as int,
+      );
+}
+
 /// Corrección del grupo muscular de un ejercicio existente. El grupo
 /// incorrecto queda en la historia; el projector aplica el correcto encima.
 class ExerciseMuscleGroupCorrected implements DomainEvent {
@@ -328,6 +373,7 @@ void registerGymEvents(EventTypeRegistry<DomainEvent> registry) {
   registry.register(WorkoutStarted.type, 1, WorkoutStarted.fromJson);
   registry.register(SetLogged.type, 1, SetLogged.fromJson);
   registry.register(SetRemoved.type, 1, SetRemoved.fromJson);
+  registry.register(SetCorrected.type, 1, SetCorrected.fromJson);
   registry.register(WorkoutCompleted.type, 1, WorkoutCompleted.fromJson);
   registry.register(WorkoutDiscarded.type, 1, WorkoutDiscarded.fromJson);
   registry.register(SetLoggedLate.type, 1, SetLoggedLate.fromJson);

@@ -28,6 +28,7 @@ class WorkoutHistoryProjector implements Projector {
         WorkoutStarted.type,
         SetLogged.type,
         SetRemoved.type,
+        SetCorrected.type,
         WorkoutCompleted.type,
         WorkoutDiscarded.type,
         SetLoggedLate.type,
@@ -59,6 +60,14 @@ class WorkoutHistoryProjector implements Projector {
           '    total_volume_kg = total_volume_kg - ? '
           'WHERE workout_id = ?',
           [weightKg * reps, workoutId],
+        );
+      case SetCorrected(:final oldWeightKg, :final oldReps, :final weightKg, :final reps):
+        final delta = weightKg * reps - oldWeightKg * oldReps;
+        await _db.customStatement(
+          'UPDATE $workoutHistoryTable '
+          'SET total_volume_kg = total_volume_kg + ? '
+          'WHERE workout_id = ?',
+          [delta, workoutId],
         );
       case WorkoutCompleted():
         await _db.customStatement(
@@ -96,8 +105,13 @@ class WorkoutSetsProjector implements Projector {
   String get name => 'gym.workout_sets';
 
   @override
-  Set<String> get handledEventTypes =>
-      {SetLogged.type, SetRemoved.type, SetLoggedLate.type, WorkoutDiscarded.type};
+  Set<String> get handledEventTypes => {
+        SetLogged.type,
+        SetRemoved.type,
+        SetCorrected.type,
+        SetLoggedLate.type,
+        WorkoutDiscarded.type,
+      };
 
   @override
   FutureOr<void> project(EventEnvelope envelope) async {
@@ -123,6 +137,12 @@ class WorkoutSetsProjector implements Projector {
         await _db.customStatement(
           'DELETE FROM $gymSetsTable WHERE workout_id = ? AND position = ?',
           [workoutId, position],
+        );
+      case SetCorrected(:final position, :final weightKg, :final reps):
+        await _db.customStatement(
+          'UPDATE $gymSetsTable SET weight_kg = ?, reps = ? '
+          'WHERE workout_id = ? AND position = ?',
+          [weightKg, reps, workoutId, position],
         );
       case SetLoggedLate(:final exercise, :final weightKg, :final reps, :final restBeforeSeconds):
         // La semana es la del WORKOUT, no la de la corrección: se hereda de
