@@ -183,16 +183,38 @@ class _ExercisePickerSheetState extends ConsumerState<_ExercisePickerSheet> {
                               ],
                             ),
                           ),
+                          // Fondo primary-container (token de "chip
+                          // activo"): los frecuentes se distinguen de un
+                          // vistazo del resto del catálogo.
                           if (_frecuentesExpanded)
                             for (final exercise in frequent)
                               ListTile(
+                                tileColor: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
                                 title: Text(exercise.name),
                                 subtitle: Text(
                                     muscleGroupLabel(exercise.muscleGroup)),
                                 onTap: () =>
                                     Navigator.pop(context, exercise),
                               ),
-                          const Divider(height: 1),
+                          // Header espejo de "Frecuentes": marca dónde
+                          // empieza el catálogo completo.
+                          Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: Text(
+                              'Todos',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
                         ],
                         for (final exercise in filtered)
                           ListTile(
