@@ -118,12 +118,15 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _counter(context, 'Inicio', formatDayTime(workout.startedAt)),
-                _counter(context, 'Series', '${workout.setCount}'),
-                _counter(
-                    context, 'Volumen', '${formatKg(workout.totalVolumeKg)} kg'),
+                Expanded(
+                    child: _counter(
+                        context, 'Inicio', formatDayTime(workout.startedAt))),
+                Expanded(
+                    child: _counter(context, 'Series', '${workout.setCount}')),
+                Expanded(
+                    child: _counter(context, 'Volumen',
+                        '${formatKg(workout.totalVolumeKg)} kg')),
               ],
             ),
           ),
@@ -355,7 +358,10 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
     return Column(
       children: [
         Text(label, style: theme.textTheme.labelMedium),
-        Text(value, style: theme.textTheme.titleMedium),
+        Text(value,
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis),
       ],
     );
   }

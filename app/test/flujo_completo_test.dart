@@ -16,6 +16,12 @@ void main() {
   setUpAll(configureSqliteNativeLibrary);
 
   Future<TestDatabase> pumpApp(WidgetTester tester) async {
+    // Geometría del dispositivo objetivo (A71: 393×873 dp, DESIGN.md). El
+    // viewport por defecto del framework (800×600) corta la pantalla de
+    // Entrenar y los taps a botones fuera de vista fallan en silencio.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
     final db = TestDatabase();
     await createEventStoreSchema(db);
     await createIntegrationEventSchema(db);
@@ -272,7 +278,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(
         find.byKey(const Key('renombrar-nombre')), 'Standing calf raise');
-    await tester.tap(find.byKey(const Key('confirmar-renombrar')));
+    await tester.tap(find.byKey(const Key('confirmar-editar')));
     await tester.pumpAndSettle();
     expect(
         find.widgetWithText(ListTile, 'Standing calf raise'), findsOneWidget);
