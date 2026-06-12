@@ -6,6 +6,7 @@ import 'package:gym/gym.dart';
 import '../format.dart';
 import '../providers.dart';
 import '../widgets/exercise_picker.dart';
+import 'workout_detail_screen.dart';
 
 /// Historial: la estadística derivada del walking skeleton (volumen por
 /// semana ISO) y la lista de entrenos. Lee proyecciones y despacha los
@@ -53,6 +54,12 @@ class HistoryScreen extends ConsumerWidget {
             title: Text(formatDayTime(workout.startedAt)),
             subtitle: Text(
                 '${workout.setCount} series · ${formatKg(workout.totalVolumeKg)} kg'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => WorkoutDetailScreen(workout: workout),
+              ),
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -97,7 +104,7 @@ class HistoryScreen extends ConsumerWidget {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } on ConcurrencyException {
       messenger.showSnackBar(const SnackBar(
-          content: Text('Conflicto de escritura, intentá de nuevo.')));
+          content: Text('Conflicto de escritura, intenta de nuevo.')));
     }
   }
 
@@ -169,8 +176,9 @@ class HistoryScreen extends ConsumerWidget {
                 key: const Key('tardia-descanso'),
                 controller: descanso,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Descanso (s, opcional)'),
+                decoration: const InputDecoration(
+                    labelText: 'Descanso previo (s)',
+                    hintText: 'opcional'),
               ),
             ],
           ),
@@ -192,7 +200,7 @@ class HistoryScreen extends ConsumerWidget {
 
     if (ejercicio == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Elegí un ejercicio.')));
+          const SnackBar(content: Text('Elige un ejercicio.')));
       return;
     }
     final pesoKg = double.tryParse(peso.text.replaceAll(',', '.'));

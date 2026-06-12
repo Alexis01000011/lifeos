@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'src/database.dart';
 import 'src/providers.dart';
+import 'src/theme.dart';
 import 'src/screens/exercises_screen.dart';
 import 'src/screens/history_screen.dart';
 import 'src/screens/home_screen.dart';
@@ -32,9 +33,8 @@ class LifeosApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'lifeos',
-      theme: ThemeData(colorSchemeSeed: Colors.teal),
-      darkTheme:
-          ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark),
+      theme: buildLifeosTheme(),
+      themeMode: ThemeMode.dark,
       home: const HomeShell(),
     );
   }

@@ -20,13 +20,14 @@ class LogWorkoutScreen extends ConsumerStatefulWidget {
 
 class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
   ExerciseSummary? _exercise;
-  final _weightKg = TextEditingController();
+  final _weightCtrl = TextEditingController();
   final _reps = TextEditingController();
   final _restSeconds = TextEditingController();
+  bool _isLbs = false;
 
   @override
   void dispose() {
-    _weightKg.dispose();
+    _weightCtrl.dispose();
     _reps.dispose();
     _restSeconds.dispose();
     super.dispose();
@@ -42,7 +43,7 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } on ConcurrencyException {
       messenger.showSnackBar(const SnackBar(
-          content: Text('Conflicto de escritura, intentá de nuevo.')));
+          content: Text('Conflicto de escritura, intenta de nuevo.')));
     }
   }
 
@@ -50,10 +51,13 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
     final exercise = _exercise;
     if (exercise == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Elegí un ejercicio.')));
+          const SnackBar(content: Text('Elige un ejercicio.')));
       return;
     }
-    final weightKg = double.tryParse(_weightKg.text.replaceAll(',', '.'));
+    final rawWeight =
+        double.tryParse(_weightCtrl.text.replaceAll(',', '.'));
+    final weightKg =
+        rawWeight == null ? null : (_isLbs ? rawWeight * 0.453592 : rawWeight);
     final reps = int.tryParse(_reps.text);
     final rest = _restSeconds.text.trim().isEmpty
         ? null
@@ -71,7 +75,7 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           reps: reps,
           restBeforeSeconds: rest,
         )));
-    _reps.clear(); // ejercicio y peso suelen repetirse entre series
+    _reps.clear();
     _restSeconds.clear();
   }
 
@@ -99,6 +103,13 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
   }
 
   Widget _inProgress(BuildContext context, WorkoutSummary workout) {
+    final setsAsync = ref.watch(workoutSetsProvider(workout.workoutId));
+    final sets = switch (setsAsync) {
+      AsyncData(:final value) => value,
+      _ => const <SetSummary>[],
+    };
+    final recent = sets.reversed.take(3).toList();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -116,23 +127,56 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
             ),
           ),
         ),
+        if (recent.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _recentSets(context, recent, workout.workoutId),
+        ],
         const SizedBox(height: 16),
         ExercisePickerField(
           key: const Key('ejercicio'),
           selected: _exercise,
-          onSelected: (exercise) => setState(() => _exercise = exercise),
+          onSelected: (exercise) async {
+            setState(() => _exercise = exercise);
+            final last = await ref
+                .read(gymReadModelsProvider)
+                .lastSetForExercise(exercise.exerciseId);
+            if (!mounted) return;
+            setState(() {
+              _weightCtrl.text = last != null ? formatKg(last.weightKg) : '';
+              _reps.text = last != null ? last.reps.toString() : '';
+            });
+          },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text('Unidad:', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(width: 8),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('kg')),
+                ButtonSegment(value: true, label: Text('lb')),
+              ],
+              selected: {_isLbs},
+              onSelectionChanged: (val) =>
+                  setState(() => _isLbs = val.first),
+              showSelectedIcon: false,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: TextField(
                 key: const Key('peso'),
-                controller: _weightKg,
+                controller: _weightCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: 'Peso (kg)', border: OutlineInputBorder()),
+                decoration: InputDecoration(
+                    labelText: 'Peso (${_isLbs ? "lb" : "kg"})',
+                    border: const OutlineInputBorder()),
               ),
             ),
             const SizedBox(width: 12),
@@ -152,7 +196,9 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
                 controller: _restSeconds,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'Descanso (s)', border: OutlineInputBorder()),
+                    labelText: 'Descanso previo (s)',
+                    hintText: 'opcional',
+                    border: OutlineInputBorder()),
               ),
             ),
           ],
@@ -162,9 +208,13 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           key: const Key('registrar'),
           icon: const Icon(Icons.add),
           label: const Text('Registrar serie'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(double.infinity, 56),
+            textStyle: Theme.of(context).textTheme.titleMedium,
+          ),
           onPressed: () => _logSet(workout.workoutId),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
         OutlinedButton.icon(
           key: const Key('terminar'),
           icon: const Icon(Icons.flag),
@@ -183,6 +233,85 @@ class _LogWorkoutScreenState extends ConsumerState<LogWorkoutScreen> {
           onPressed: () => _confirmarDescarte(workout.workoutId),
         ),
       ],
+    );
+  }
+
+  Widget _recentSets(
+      BuildContext context, List<SetSummary> recent, String workoutId) {
+    final theme = Theme.of(context);
+    final onContainer = theme.colorScheme.onSecondaryContainer;
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Últimas series',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(color: onContainer)),
+            const SizedBox(height: 6),
+            for (int i = 0; i < recent.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: onContainer.withAlpha(40)),
+              // Solo la más reciente (índice 0) es eliminable con swipe.
+              if (i == 0)
+                Dismissible(
+                  key: Key('set-${recent[i].position}'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(Icons.delete_outline,
+                        color: theme.colorScheme.error, size: 20),
+                  ),
+                  onDismissed: (_) => _dispatch(() => ref
+                      .read(removeLastSetProvider)
+                      .handle(RemoveLastSet(workoutId))),
+                  child: _setRow(context, recent[i], theme, onContainer),
+                )
+              else
+                _setRow(context, recent[i], theme, onContainer),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _setRow(BuildContext context, SetSummary s, ThemeData theme,
+      Color onContainer) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              '#${s.position}',
+              style:
+                  theme.textTheme.labelSmall?.copyWith(color: onContainer),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              s.exercise,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: onContainer,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '${formatKg(s.weightKg)} kg × ${s.reps}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: onContainer,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

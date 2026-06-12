@@ -101,6 +101,9 @@ final discardWorkoutProvider = Provider<DiscardWorkoutHandler>(
 final addMissedSetProvider = Provider<AddMissedSetHandler>(
   (ref) => AddMissedSetHandler(ref.watch(_workoutsProvider)),
 );
+final removeLastSetProvider = Provider<RemoveLastSetHandler>(
+  (ref) => RemoveLastSetHandler(ref.watch(_workoutsProvider)),
+);
 
 final _exerciseCatalogProvider =
     Provider<AggregateRepository<ExerciseCatalog>>(
@@ -112,6 +115,11 @@ final addExerciseProvider = Provider<AddExerciseHandler>(
 );
 final renameExerciseProvider = Provider<RenameExerciseHandler>(
   (ref) => RenameExerciseHandler(ref.watch(_exerciseCatalogProvider)),
+);
+final correctExerciseMuscleGroupProvider =
+    Provider<CorrectExerciseMuscleGroupHandler>(
+  (ref) =>
+      CorrectExerciseMuscleGroupHandler(ref.watch(_exerciseCatalogProvider)),
 );
 
 final gymReadModelsProvider = Provider<GymReadModels>(
@@ -138,6 +146,26 @@ final weeklyVolumeProvider = StreamProvider<List<WeeklyVolume>>((ref) {
   final db = ref.watch(databaseProvider);
   final readModels = ref.watch(gymReadModelsProvider);
   return watchQuery(db, {gymSetsTable}, readModels.weeklyVolume);
+});
+
+final workoutSetsProvider =
+    StreamProvider.family<List<SetSummary>, String>((ref, workoutId) {
+  final db = ref.watch(databaseProvider);
+  final readModels = ref.watch(gymReadModelsProvider);
+  return watchQuery(
+      db, {gymSetsTable}, () => readModels.setsForWorkout(workoutId));
+});
+
+/// Top 5 ejercicios por frecuencia de uso; alimenta la sección "Frecuentes"
+/// del picker. Se actualiza cada vez que se loggea o elimina una serie.
+final exercisesByFrequencyProvider = StreamProvider<List<ExerciseSummary>>((ref) {
+  final db = ref.watch(databaseProvider);
+  final readModels = ref.watch(gymReadModelsProvider);
+  return watchQuery(
+    db,
+    {gymSetsTable, gymExercisesTable, gymExerciseNamesTable},
+    readModels.exercisesByFrequency,
+  );
 });
 
 final hubReadModelsProvider = Provider<HubReadModels>(

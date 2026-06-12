@@ -15,6 +15,7 @@ dependencies:
   path_provider: ^2.1.4
   path: ^1.9.0
   uuid: ^4.4.0
+  google_fonts: ^6.1.0
   core:
     path: ../packages/core
   core_drift:

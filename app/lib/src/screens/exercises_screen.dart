@@ -36,7 +36,7 @@ class ExercisesScreen extends ConsumerWidget {
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Text(
-          'El catálogo está vacío.\n\nCreá tus ejercicios con el botón + '
+          'El catálogo está vacío.\n\nCrea tus ejercicios con el botón + '
           '(el inventario de tu rutina es la guía).',
           textAlign: TextAlign.center,
         ),
@@ -46,72 +46,116 @@ class ExercisesScreen extends ConsumerWidget {
 
   Widget _list(
       BuildContext context, WidgetRef ref, List<ExerciseSummary> exercises) {
-    // La lista ya viene ordenada por grupo (orden del enum) y nombre.
-    final children = <Widget>[];
-    String? currentGroup;
-    for (final exercise in exercises) {
-      if (exercise.muscleGroup != currentGroup) {
-        currentGroup = exercise.muscleGroup;
-        children.add(Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text(
-            muscleGroupLabel(currentGroup),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary),
-          ),
-        ));
-      }
-      children.add(ListTile(
-        title: Text(exercise.name),
-        trailing: const Icon(Icons.edit_outlined, size: 18),
-        onTap: () => _renombrar(context, ref, exercise),
-      ));
+    // Agrupar por grupo muscular (la lista ya viene ordenada).
+    final Map<String, List<ExerciseSummary>> byGroup = {};
+    for (final e in exercises) {
+      (byGroup[e.muscleGroup] ??= []).add(e);
     }
+
     return ListView(
-        padding: const EdgeInsets.only(bottom: 88), children: children);
+      padding: const EdgeInsets.only(bottom: 88),
+      children: [
+        for (final entry in byGroup.entries)
+          ExpansionTile(
+            initiallyExpanded: true,
+            title: Text(
+              muscleGroupLabel(entry.key),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary),
+            ),
+            children: [
+              for (final exercise in entry.value)
+                ListTile(
+                  title: Text(exercise.name),
+                  trailing: const Icon(Icons.edit_outlined, size: 18),
+                  onTap: () => _editar(context, ref, exercise),
+                ),
+            ],
+          ),
+      ],
+    );
   }
 
-  Future<void> _renombrar(
+  Future<void> _editar(
       BuildContext context, WidgetRef ref, ExerciseSummary exercise) async {
     final nombre = TextEditingController(text: exercise.name);
+    var grupo = MuscleGroup.values.byName(exercise.muscleGroup);
+
     final confirmado = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Renombrar ejercicio'),
-        content: TextField(
-          key: const Key('renombrar-nombre'),
-          controller: nombre,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-              labelText: 'Nombre',
-              helperText:
-                  'El nombre viejo sigue vinculado a las series pasadas'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Editar ejercicio'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                key: const Key('renombrar-nombre'),
+                controller: nombre,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  helperText: 'El nombre anterior sigue vinculado a series pasadas',
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<MuscleGroup>(
+                key: const Key('editar-grupo'),
+                initialValue: grupo,
+                decoration:
+                    const InputDecoration(labelText: 'Grupo muscular'),
+                items: [
+                  for (final g in MuscleGroup.values)
+                    DropdownMenuItem(value: g, child: Text(g.label)),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => grupo = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              key: const Key('confirmar-editar'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Guardar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            key: const Key('confirmar-renombrar'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Renombrar'),
-          ),
-        ],
       ),
     );
     if (confirmado != true || !context.mounted) return;
 
+    final nombreCambiado = nombre.text.trim() != exercise.name;
+    final grupoCambiado = grupo.name != exercise.muscleGroup;
+    if (!nombreCambiado && !grupoCambiado) return;
+
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(renameExerciseProvider).handle(RenameExercise(
-          exerciseId: exercise.exerciseId, newName: nombre.text));
+      if (nombreCambiado) {
+        await ref.read(renameExerciseProvider).handle(
+              RenameExercise(
+                  exerciseId: exercise.exerciseId, newName: nombre.text),
+            );
+      }
+      if (grupoCambiado && context.mounted) {
+        await ref.read(correctExerciseMuscleGroupProvider).handle(
+              CorrectExerciseMuscleGroup(
+                exerciseId: exercise.exerciseId,
+                newMuscleGroup: grupo,
+              ),
+            );
+      }
     } on DomainException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } on ConcurrencyException {
       messenger.showSnackBar(const SnackBar(
-          content: Text('Conflicto de escritura, intentá de nuevo.')));
+          content: Text('Conflicto de escritura, intenta de nuevo.')));
     }
   }
 }

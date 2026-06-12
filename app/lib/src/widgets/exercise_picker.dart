@@ -59,19 +59,55 @@ class _ExercisePickerSheet extends ConsumerStatefulWidget {
 
 class _ExercisePickerSheetState extends ConsumerState<_ExercisePickerSheet> {
   var _query = '';
+  var _frecuentesExpanded = true;
+
+  /// Devuelve el grupo muscular si el query coincide exactamente con su
+  /// nombre o etiqueta (case-insensitive). Si no hay match, devuelve null
+  /// y el filtro opera sobre el nombre del ejercicio.
+  MuscleGroup? _matchMuscleGroup(String query) {
+    if (query.isEmpty) return null;
+    final q = normalizeExerciseName(query);
+    for (final g in MuscleGroup.values) {
+      if (normalizeExerciseName(g.name) == q ||
+          normalizeExerciseName(g.label) == q) {
+        return g;
+      }
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final exercises =
         ref.watch(exercisesProvider).value ?? const <ExerciseSummary>[];
-    final filtered = [
-      for (final e in exercises)
-        if (normalizeExerciseName(e.name)
-            .contains(normalizeExerciseName(_query)))
-          e,
-    ];
+    final frequent =
+        ref.watch(exercisesByFrequencyProvider).value ?? const <ExerciseSummary>[];
+
+    final showFrecuentes = _query.isEmpty && frequent.isNotEmpty;
+    final frequentIds =
+        showFrecuentes ? {for (final e in frequent) e.exerciseId} : const <String>{};
+
+    final List<ExerciseSummary> filtered;
+    if (_query.isEmpty) {
+      // Sin búsqueda: muestra todos excepto los ya en "Frecuentes".
+      filtered = [
+        for (final e in exercises)
+          if (!frequentIds.contains(e.exerciseId)) e,
+      ];
+    } else {
+      // Con búsqueda: filtra por grupo si coincide, si no por nombre.
+      final matchedGroup = _matchMuscleGroup(_query);
+      filtered = [
+        for (final e in exercises)
+          if (matchedGroup != null
+              ? e.muscleGroup == matchedGroup.name
+              : normalizeExerciseName(e.name)
+                  .contains(normalizeExerciseName(_query)))
+            e,
+      ];
+    }
+
     return Padding(
-      // El sheet sube con el teclado.
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SizedBox(
@@ -109,14 +145,60 @@ class _ExercisePickerSheetState extends ConsumerState<_ExercisePickerSheet> {
             Expanded(
               child: exercises.isEmpty
                   ? const Center(
-                      child: Text('El catálogo está vacío: creá el primero.'))
+                      child: Text('El catálogo está vacío: crea el primero.'))
                   : ListView(
                       children: [
+                        if (showFrecuentes) ...[
+                          Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Frecuentes',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    _frecuentesExpanded
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                    size: 20,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => setState(() =>
+                                      _frecuentesExpanded =
+                                          !_frecuentesExpanded),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_frecuentesExpanded)
+                            for (final exercise in frequent)
+                              ListTile(
+                                title: Text(exercise.name),
+                                subtitle: Text(
+                                    muscleGroupLabel(exercise.muscleGroup)),
+                                onTap: () =>
+                                    Navigator.pop(context, exercise),
+                              ),
+                          const Divider(height: 1),
+                        ],
                         for (final exercise in filtered)
                           ListTile(
                             title: Text(exercise.name),
-                            subtitle: Text(muscleGroupLabel(
-                                exercise.muscleGroup)),
+                            subtitle: Text(
+                                muscleGroupLabel(exercise.muscleGroup)),
                             onTap: () => Navigator.pop(context, exercise),
                           ),
                       ],
@@ -194,7 +276,7 @@ Future<ExerciseSummary?> showAddExerciseDialog(
 
   if (grupo == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Elegí un grupo muscular.')));
+        const SnackBar(content: Text('Elige un grupo muscular.')));
     return null;
   }
 
@@ -216,7 +298,7 @@ Future<ExerciseSummary?> showAddExerciseDialog(
     return null;
   } on ConcurrencyException {
     messenger.showSnackBar(const SnackBar(
-        content: Text('Conflicto de escritura, intentá de nuevo.')));
+        content: Text('Conflicto de escritura, intenta de nuevo.')));
     return null;
   }
   return ExerciseSummary(
